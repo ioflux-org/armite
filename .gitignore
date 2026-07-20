@@ -1,0 +1,30 @@
+# Binaries
+/provisio
+/bin/
+*.exe
+
+# Test & coverage output
+*.test
+*.out
+coverage.html
+
+# Go workspace file (local-only multi-module setup)
+go.work
+go.work.sum
+
+# Generated TLS material (local CA, certs, keys)
+*.pem
+*.key
+*.crt
+*.srl
+
+# Editor / OS noise
+.vscode/
+.idea/
+.DS_Store
+
+# Local env / scratch
+.env
+
+provisio
+data/
