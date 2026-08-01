@@ -15,8 +15,8 @@ func Default() Config {
 		SubscriptionID:       "22222222-2222-2222-2222-222222222222",
 		DefaultResourceGroup: "default-rg",
 		ListenerAddr:         "localhost:8443",
-		ARMHost:              "localhost",
-		LoginHost:            "localhost",
+		ARMHost:              "127.0.0.1",
+		LoginHost:            "127.0.0.1",
 	}
 
 	return config
