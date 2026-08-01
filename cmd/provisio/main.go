@@ -5,7 +5,7 @@ import (
 	"log"
 	"net/http"
 
-	config "github.com/ioflux-org/provisio/internal/config"
+	"github.com/ioflux-org/provisio/internal/config"
 )
 
 func placeholderHandler(w http.ResponseWriter, r *http.Request) {
@@ -15,8 +15,16 @@ func placeholderHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	http.HandleFunc("/", placeholderHandler)
+	cfg := config.Default()
 
-	config := config.Default()
-	log.Fatal(http.ListenAndServe(config.ListenerAddr, nil))
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", placeholderHandler)
+
+	server := &http.Server{
+		Addr:    cfg.ListenerAddr,
+		Handler: mux,
+	}
+
+	log.Printf("Starting server on %s", cfg.ListenerAddr)
+	log.Fatal(server.ListenAndServe())
 }
