@@ -115,7 +115,7 @@ func IssueLeaf(caCert *x509.Certificate, caKey *ecdsa.PrivateKey, hosts []string
 	}
 	der, err := x509.CreateCertificate(rand.Reader, tmpl, caCert, &key.PublicKey, caKey)
 	if err != nil {
-		return "", "", nil
+		return "", "", err
 	}
 	certPath := filepath.Join(dir, leafCertFile)
 	keyPath := filepath.Join(dir, leafKeyFile)
@@ -146,7 +146,7 @@ func newSerial() (*big.Int, error) {
 }
 
 func writePEM(path, blockType string, der []byte, mode os.FileMode) error {
-	data := pem.EncodeToMemory((&pem.Block{Type: blockType, Bytes: der}))
+	data := pem.EncodeToMemory(&pem.Block{Type: blockType, Bytes: der})
 	return os.WriteFile(path, data, mode)
 }
 
@@ -177,7 +177,7 @@ func loadCA(certPath, keyPath string) (*x509.Certificate, *ecdsa.PrivateKey, err
 	}
 	block, _ = pem.Decode(keyPEM)
 	if block == nil || block.Type != "PRIVATE KEY" {
-		return nil, nil, fmt.Errorf("pki: %s does is not a PKCS#8 PEM private key", keyPath)
+		return nil, nil, fmt.Errorf("pki: %s is not a PKCS#8 PEM private key", keyPath)
 	}
 	parsed, err := x509.ParsePKCS8PrivateKey(block.Bytes)
 	if err != nil {
