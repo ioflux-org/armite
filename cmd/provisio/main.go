@@ -1,20 +1,14 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"net/http"
 	"path/filepath"
 
 	"github.com/ioflux-org/provisio/internal/config"
 	"github.com/ioflux-org/provisio/internal/pki"
+	"github.com/ioflux-org/provisio/internal/router"
 )
-
-func placeholderHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	fmt.Fprintf(w, "{\"message\": \"hello go!\"}")
-}
 
 const certDir = "certs"
 
@@ -31,12 +25,9 @@ func main() {
 		log.Fatal(err)
 	}
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("/", placeholderHandler)
-
 	server := &http.Server{
 		Addr:    cfg.ListenerAddr,
-		Handler: mux,
+		Handler: router.New(cfg),
 	}
 
 	log.Printf("Starting server on https://%s", cfg.ListenerAddr)
