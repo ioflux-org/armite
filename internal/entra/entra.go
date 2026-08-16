@@ -1,6 +1,7 @@
 package entra
 
 import (
+	"crypto/rsa"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -20,13 +21,15 @@ type discoveryDocument struct {
 }
 
 type Handler struct {
-	cfg config.Config
-	mux *http.ServeMux
+	cfg        config.Config
+	signingKey *rsa.PrivateKey
+	mux        *http.ServeMux
 }
 
-func New(cfg config.Config) *Handler {
-	h := &Handler{cfg: cfg, mux: http.NewServeMux()}
+func New(cfg config.Config, signingKey *rsa.PrivateKey) *Handler {
+	h := &Handler{cfg: cfg, signingKey: signingKey, mux: http.NewServeMux()}
 	h.mux.HandleFunc("GET /{tenant}/v2.0/.well-known/openid-configuration", h.serveDiscovery)
+	h.mux.HandleFunc("GET /{tenant}/discovery/v2.0/keys", h.serveJWKS)
 	return h
 }
 

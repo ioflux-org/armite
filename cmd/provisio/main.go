@@ -25,9 +25,14 @@ func main() {
 		log.Fatal(err)
 	}
 
+	signingKey, err := pki.EnsureSigningKey(certDir)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	server := &http.Server{
 		Addr:    cfg.ListenerAddr,
-		Handler: router.New(cfg),
+		Handler: router.New(cfg, signingKey),
 	}
 
 	log.Printf("Starting server on https://%s", cfg.ListenerAddr)

@@ -150,7 +150,7 @@ func writePEM(path, blockType string, der []byte, mode os.FileMode) error {
 	return os.WriteFile(path, data, mode)
 }
 
-func writeKey(path string, key *ecdsa.PrivateKey) error {
+func writeKey(path string, key any) error {
 	der, err := x509.MarshalPKCS8PrivateKey(key)
 	if err != nil {
 		return err
@@ -171,15 +171,7 @@ func loadCA(certPath, keyPath string) (*x509.Certificate, *ecdsa.PrivateKey, err
 	if err != nil {
 		return nil, nil, err
 	}
-	keyPEM, err := os.ReadFile(keyPath)
-	if err != nil {
-		return nil, nil, err
-	}
-	block, _ = pem.Decode(keyPEM)
-	if block == nil || block.Type != "PRIVATE KEY" {
-		return nil, nil, fmt.Errorf("pki: %s is not a PKCS#8 PEM private key", keyPath)
-	}
-	parsed, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+	parsed, err := readKey(keyPath)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -188,4 +180,16 @@ func loadCA(certPath, keyPath string) (*x509.Certificate, *ecdsa.PrivateKey, err
 		return nil, nil, fmt.Errorf("pki: %s holds a %T, want *ecdsa.PrivateKey", keyPath, parsed)
 	}
 	return cert, key, nil
+}
+
+func readKey(path string) (any, error) {
+	keyPEM, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	block, _ := pem.Decode(keyPEM)
+	if block == nil || block.Type != "PRIVATE KEY" {
+		return nil, fmt.Errorf("pki: %s is not a PKCS#8 PEM private key", path)
+	}
+	return x509.ParsePKCS8PrivateKey(block.Bytes)
 }

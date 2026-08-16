@@ -1,6 +1,7 @@
 package router
 
 import (
+	"crypto/rsa"
 	"fmt"
 	"net"
 	"net/http"
@@ -15,8 +16,8 @@ type Router struct {
 	login http.Handler
 }
 
-func New(cfg config.Config) *Router {
-	return &Router{cfg: cfg, login: entra.New(cfg)}
+func New(cfg config.Config, signingKey *rsa.PrivateKey) *Router {
+	return &Router{cfg: cfg, login: entra.New(cfg, signingKey)}
 }
 
 func (rt *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {

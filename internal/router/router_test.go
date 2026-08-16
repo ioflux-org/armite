@@ -9,7 +9,7 @@ import (
 )
 
 func TestPlaneDispatch(t *testing.T) {
-	rt := New(config.Default())
+	rt := New(config.Default(), nil)
 
 	tests := []struct {
 		name       string

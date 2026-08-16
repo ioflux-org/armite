@@ -83,6 +83,24 @@ func TestPrivateKeyFilePermissions(t *testing.T) {
 	}
 }
 
+func TestEnsureSigningKeyIsIdempotent(t *testing.T) {
+	dir := t.TempDir()
+	first, err := EnsureSigningKey(dir)
+	if err != nil {
+		t.Fatalf("first EnsureSigningKey: %v", err)
+	}
+	second, err := EnsureSigningKey(dir)
+	if err != nil {
+		t.Fatalf("second EnsureSigningKey %v", err)
+	}
+	if first.N.Cmp(second.N) != 0 {
+		t.Errorf("signing key changed across boots")
+	}
+	if perm := statPerm(t, filepath.Join(dir, signingKeyFile)); perm != 0o600 {
+		t.Errorf("signing key permissions = %o, want 600", perm)
+	}
+}
+
 func readCert(t *testing.T, path string) *x509.Certificate {
 	t.Helper()
 	data, err := os.ReadFile(path)
@@ -98,4 +116,13 @@ func readCert(t *testing.T, path string) *x509.Certificate {
 		t.Fatalf("parse %s: %v", path, err)
 	}
 	return cert
+}
+
+func statPerm(t *testing.T, path string) os.FileMode {
+	t.Helper()
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat %s: %v", path, err)
+	}
+	return info.Mode().Perm()
 }
