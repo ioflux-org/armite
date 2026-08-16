@@ -1,0 +1,59 @@
+package entra
+
+import (
+	"encoding/json"
+	"log"
+	"net/http"
+
+	"github.com/ioflux-org/provisio/internal/config"
+)
+
+type discoveryDocument struct {
+	Issuer                            string   `json:"issuer"`
+	AuthorizationEndpoint             string   `json:"authorization_endpoint"`
+	TokenEndpoint                     string   `json:"token_endpoint"`
+	JWKSURI                           string   `json:"jwks_uri"`
+	ResponseTypesSupported            []string `json:"response_types_supported"`
+	SubjectTypesSupported             []string `json:"subject_types_supported"`
+	IDTokenSigningAlgValuesSupported  []string `json:"id_token_signing_alg_values_supported"`
+	TokenEndpointAuthMethodsSupported []string `json:"token_endpoint_auth_methods_supported"`
+}
+
+type Handler struct {
+	cfg config.Config
+	mux *http.ServeMux
+}
+
+func New(cfg config.Config) *Handler {
+	h := &Handler{cfg: cfg, mux: http.NewServeMux()}
+	h.mux.HandleFunc("GET /{tenant}/v2.0/.well-known/openid-configuration", h.serveDiscovery)
+	return h
+}
+
+func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	log.Printf("entra: %s %s", r.Method, r.URL.Path)
+	h.mux.ServeHTTP(w, r)
+}
+
+func (h *Handler) serveDiscovery(w http.ResponseWriter, r *http.Request) {
+	tenant := r.PathValue("tenant")
+	if tenant != h.cfg.TenantID {
+		writeOAuthError(w, http.StatusBadRequest, "invalid_request", "AADSTS90002: Tenant '"+tenant+"' not found.")
+		return
+	}
+	base := h.cfg.LoginBaseURL() + "/" + tenant
+	doc := discoveryDocument{
+		Issuer:                            base + "/v2.0",
+		AuthorizationEndpoint:             base + "/oauth2/v2.0/authorize",
+		TokenEndpoint:                     base + "/oauth2/v2.0/token",
+		JWKSURI:                           base + "/discovery/v2.0/keys",
+		ResponseTypesSupported:            []string{"code", "id_token", "token"},
+		SubjectTypesSupported:             []string{"pairwise"},
+		IDTokenSigningAlgValuesSupported:  []string{"RS256"},
+		TokenEndpointAuthMethodsSupported: []string{"client_secret_post", "client_secret_basic"},
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(doc); err != nil {
+		log.Printf("entra: encoding discovery document: %v", err)
+	}
+}

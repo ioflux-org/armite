@@ -7,14 +7,16 @@ import (
 
 	"github.com/ioflux-org/provisio/internal/azerr"
 	"github.com/ioflux-org/provisio/internal/config"
+	"github.com/ioflux-org/provisio/internal/entra"
 )
 
 type Router struct {
-	cfg config.Config
+	cfg   config.Config
+	login http.Handler
 }
 
 func New(cfg config.Config) *Router {
-	return &Router{cfg: cfg}
+	return &Router{cfg: cfg, login: entra.New(cfg)}
 }
 
 func (rt *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -22,7 +24,7 @@ func (rt *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case rt.cfg.ARMHost:
 		rt.serveARM(w, r)
 	case rt.cfg.LoginHost:
-		rt.serveLogin(w, r)
+		rt.login.ServeHTTP(w, r)
 	default:
 		rt.serveARM(w, r)
 	}
@@ -30,12 +32,8 @@ func (rt *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (rt *Router) serveARM(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("WWW-Authenticate",
-		fmt.Sprintf("Bearer authorization_uri=%q", "https://"+rt.cfg.LoginHost+"/"+rt.cfg.TenantID))
+		fmt.Sprintf("Bearer authorization_uri=%q", rt.cfg.LoginBaseURL()+"/"+rt.cfg.TenantID))
 	azerr.WriteError(w, http.StatusUnauthorized, azerr.CodeAuthenticationFailed, "Authentication failed. The Authorization header is missing or invalid.")
-}
-
-func (rt *Router) serveLogin(w http.ResponseWriter, r *http.Request) {
-	http.NotFound(w, r)
 }
 
 func stripPort(hostport string) string {
