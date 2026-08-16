@@ -1,5 +1,7 @@
 package config
 
+import "net"
+
 type Config struct {
 	TenantID             string `yaml:"tenant_id"`
 	SubscriptionID       string `yaml:"subscription_id"`
@@ -20,4 +22,12 @@ func Default() Config {
 	}
 
 	return config
+}
+
+func (c Config) LoginBaseURL() string {
+	_, port, err := net.SplitHostPort(c.ListenerAddr)
+	if err != nil {
+		return "https://" + c.LoginHost
+	}
+	return "https://" + c.LoginHost + ":" + port
 }

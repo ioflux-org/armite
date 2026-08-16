@@ -45,3 +45,11 @@ func TestDefaultListenerAddrIsHostPort(t *testing.T) {
 		t.Errorf("ListenerAddr = %q, not a valid host:port: %v", config.ListenerAddr, err)
 	}
 }
+
+func TestLoginBaseURL(t *testing.T) {
+	got := Default().LoginBaseURL()
+	want := "https://login.localhost:8443"
+	if got != want {
+		t.Errorf("LoginBaseURL = %q, want %q", got, want)
+	}
+}
