@@ -30,6 +30,9 @@ func TestDefaultHasNoEmptyFields(t *testing.T) {
 		"ListenerAddr":         config.ListenerAddr,
 		"ARMHost":              config.ARMHost,
 		"LoginHost":            config.LoginHost,
+		"Clients[0].ID":        config.Clients[0].ID,
+		"Clients[0].Secret":    config.Clients[0].Secret,
+		"Clients[0].ObjectID":  config.Clients[0].ObjectID,
 	}
 	for name, val := range fields {
 		if val == "" {
@@ -51,5 +54,23 @@ func TestLoginBaseURL(t *testing.T) {
 	want := "https://login.localhost:8443"
 	if got != want {
 		t.Errorf("LoginBaseURL = %q, want %q", got, want)
+	}
+}
+
+func TestFindClient(t *testing.T) {
+	cfg := Default()
+	if len(cfg.Clients) == 0 {
+		t.Fatal("Default() has no clients")
+	}
+	want := cfg.Clients[0]
+	got, ok := cfg.FindClient(want.ID)
+	if !ok || got != want {
+		t.Errorf("FindClient(%q) = %+v, %v; want %+v, true", want.ID, got, ok, want)
+	}
+	if _, ok := cfg.FindClient("nope"); ok {
+		t.Errorf("FindClient(nope) found something")
+	}
+	if want.ID == want.ObjectID {
+		t.Errorf("client ID and ObjectID must differ (appid vs oid)")
 	}
 }

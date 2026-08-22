@@ -30,6 +30,7 @@ func New(cfg config.Config, signingKey *rsa.PrivateKey) *Handler {
 	h := &Handler{cfg: cfg, signingKey: signingKey, mux: http.NewServeMux()}
 	h.mux.HandleFunc("GET /{tenant}/v2.0/.well-known/openid-configuration", h.serveDiscovery)
 	h.mux.HandleFunc("GET /{tenant}/discovery/v2.0/keys", h.serveJWKS)
+	h.mux.HandleFunc("POST /{tenant}/oauth2/v2.0/token", h.serveToken)
 	return h
 }
 

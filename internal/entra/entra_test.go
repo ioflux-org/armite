@@ -148,3 +148,146 @@ func TestJWKSRoundTrip(t *testing.T) {
 		t.Errorf("decoded modulus does not match the signing key")
 	}
 }
+
+func TestTokenHappyPath(t *testing.T) {
+	cfg := config.Default()
+	h := New(cfg, testKey)
+	rec := postToken(t, h, validForm(cfg))
+	if rec.Code != 200 {
+		t.Fatalf("status = %d, want 200; body %s", rec.Code, rec.Body.String())
+	}
+	if cc := rec.Header().Get("Cache-Control"); cc != "no-store" {
+		t.Errorf("Cache-Control = %q, want no-store", cc)
+	}
+	var resp struct {
+		TokenType   string `json:"token_type"`
+		ExpiresIn   int64  `json:"expires_in"`
+		AccessToken string `json:"access_token"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("body is not JSON: %v", err)
+	}
+	if resp.TokenType != "Bearer" || resp.ExpiresIn <= 0 || resp.AccessToken == "" {
+		t.Fatalf("response = %+v, want Bearer/positive expiry/non-empty token", resp)
+	}
+	parts := strings.Split(resp.AccessToken, ".")
+	if len(parts) != 3 {
+		t.Fatalf("token has %d segments, want 3", len(parts))
+	}
+	hdrJSON, err := base64.RawURLEncoding.DecodeString(parts[0])
+	if err != nil {
+		t.Fatalf("header is not base64url: %v", err)
+	}
+	var hdr struct {
+		Alg,
+		Kid,
+		Typ string
+	}
+	if err := json.Unmarshal(hdrJSON, &hdr); err != nil {
+		t.Fatalf("header is not JSON: %v", err)
+	}
+	if hdr.Alg != "RS256" || hdr.Typ != "JWT" || hdr.Kid != keyID(&testKey.PublicKey) {
+		t.Errorf("header = %+v, want RS256/JWT/matching kid", hdr)
+	}
+
+	c, err := verifyJWT(&testKey.PublicKey, resp.AccessToken)
+	if err != nil {
+		t.Fatalf("verifyJWT: %v", err)
+	}
+	wantIss := cfg.LoginBaseURL() + "/" + cfg.TenantID + "/v2.0"
+	if c.Issuer != wantIss {
+		t.Errorf("iss = %q, want %q (must byte-match discovery issuer)", c.Issuer, wantIss)
+	}
+	if c.Audience != "https://management.azure.com" {
+		t.Errorf("aud = %q, want https://management.azure.com", c.Audience)
+	}
+	cl := cfg.Clients[0]
+	if c.ObjectID != cl.ObjectID || c.Subject != cl.ObjectID || c.AppID != cl.ID || c.TenantID != cfg.TenantID {
+		t.Errorf("identity claims = oid %q sub %q appid %q tid %q; want %q %q %q %q",
+			c.ObjectID, c.Subject, c.AppID, c.TenantID, cl.ObjectID, cl.ObjectID, cl.ID, cfg.TenantID)
+	}
+	if c.ExpiresAt-c.IssuedAt != int64(tokenLifetime.Seconds()) {
+		t.Errorf("exp-iat = %d, want %d", c.ExpiresAt-c.IssuedAt, int64(tokenLifetime.Seconds()))
+	}
+}
+
+func TestTokenRejections(t *testing.T) {
+	cfg := config.Default()
+	h := New(cfg, testKey)
+	tests := []struct {
+		name       string
+		mutate     func(url.Values)
+		wantStatus int
+		wantError  string
+	}{
+		{"wrong secret", func(f url.Values) { f.Set("client_secret", "nope") }, 401, "invalid_client"},
+		{"unknown client", func(f url.Values) { f.Set("client_id", "55555555-5555-5555-5555-555555555555") }, 401, "unauthorized_client"},
+		{"wrong grant", func(f url.Values) { f.Set("grant_type", "password") }, 400, "unsupported_grant_type"},
+		{"missing scope", func(f url.Values) { f.Del("scope") }, 400, "invalid_request"},
+		{"blank scope", func(f url.Values) { f.Set("scope", "   ") }, 400, "invalid_request"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			form := validForm(cfg)
+			tt.mutate(form)
+			rec := postToken(t, h, form)
+			if rec.Code != tt.wantStatus {
+				t.Errorf("status = %d, want %d; body %s", rec.Code, tt.wantStatus, rec.Body.String())
+			}
+			var oe struct {
+				Error string `json:"error"`
+			}
+			if err := json.Unmarshal(rec.Body.Bytes(), &oe); err != nil {
+				t.Fatalf("body is not JSON: %v", err)
+			}
+			if oe.Error != tt.wantError {
+				t.Errorf("error = %q, want %q", oe.Error, tt.wantError)
+			}
+		})
+	}
+}
+
+func TestTamperedTokenFailsVerification(t *testing.T) {
+	cfg := config.Default()
+	h := New(cfg, testKey)
+	rec := postToken(t, h, validForm(cfg))
+	if rec.Code != 200 {
+		t.Fatalf("status = %d, want 200; body %s", rec.Code, rec.Body.String())
+	}
+	var resp struct {
+		AccessToken string `json:"access_token"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("body is not JSON: %v", err)
+	}
+	parts := strings.Split(resp.AccessToken, ".")
+	if len(parts) != 3 {
+		t.Fatalf("token has %d segments, want 3", len(parts))
+	}
+	forged := base64.RawURLEncoding.EncodeToString([]byte(`{"oid":"attacker"}`))
+	tampered := parts[0] + "." + forged + "." + parts[2]
+	if _, err := verifyJWT(&testKey.PublicKey, tampered); err == nil {
+		t.Errorf("verifyJWT accepted a token with forged claims")
+	}
+}
+
+func postToken(t *testing.T, h *Handler, form url.Values) *httptest.ResponseRecorder {
+	t.Helper()
+	cfg := config.Default()
+	req := httptest.NewRequest("POST", "https://"+cfg.LoginHost+":8443/"+cfg.TenantID+"/oauth2/v2.0/token",
+		strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	return rec
+}
+
+func validForm(cfg config.Config) url.Values {
+	cl := cfg.Clients[0]
+	return url.Values{
+		"grant_type":    {"client_credentials"},
+		"client_id":     {cl.ID},
+		"client_secret": {cl.Secret},
+		"scope":         {"https://management.azure.com/.default"},
+	}
+}

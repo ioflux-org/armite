@@ -2,9 +2,12 @@ package entra
 
 import (
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 )
+
+var errMalformedToken = errors.New("entra: malformed token")
 
 type oauthError struct {
 	Error            string `json:"error"`
