@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/ioflux-org/provisio/internal/config"
 )
 
 const tokenLifetime = time.Hour
@@ -48,20 +50,7 @@ func (h *Handler) serveToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	now := time.Now()
-	c := claims{
-		Issuer:    h.cfg.LoginBaseURL() + "/" + tenant + "/v2.0",
-		Subject:   client.ObjectID,
-		Audience:  aud,
-		IssuedAt:  now.Unix(),
-		NotBefore: now.Unix(),
-		ExpiresAt: now.Add(tokenLifetime).Unix(),
-		TenantID:  tenant,
-		ObjectID:  client.ObjectID,
-		AppID:     client.ID,
-		IDType:    "app",
-		Version:   "2.0",
-	}
+	c := newAppClaims(h.cfg, aud, client.ObjectID, client.ID, time.Now())
 
 	token, err := signJWT(h.signingKey, c)
 	if err != nil {
@@ -90,4 +79,23 @@ func audienceFromScope(scope string) (string, bool) {
 		return "", false
 	}
 	return strings.TrimSuffix(fields[0], "/.default"), true
+}
+
+// newAppClaims builds the claims for an application (service principal) token.
+// Both token sources — client credentials and IMDS — mint the same shape; only
+// who (objectID/appID) and for what (aud) differ.
+func newAppClaims(cfg config.Config, aud, objectID, appID string, now time.Time) claims {
+	return claims{
+		Issuer:    cfg.LoginBaseURL() + "/" + cfg.TenantID + "/v2.0",
+		Subject:   objectID,
+		Audience:  aud,
+		IssuedAt:  now.Unix(),
+		NotBefore: now.Unix(),
+		ExpiresAt: now.Add(tokenLifetime).Unix(),
+		TenantID:  cfg.TenantID,
+		ObjectID:  objectID,
+		AppID:     appID,
+		IDType:    "app",
+		Version:   "2.0",
+	}
 }

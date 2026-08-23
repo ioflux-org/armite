@@ -24,15 +24,18 @@ func TestDefaultHasNoEmptyFields(t *testing.T) {
 	config := Default()
 
 	fields := map[string]string{
-		"TenantID":             config.TenantID,
-		"SubscriptionID":       config.SubscriptionID,
-		"DefaultResourceGroup": config.DefaultResourceGroup,
-		"ListenerAddr":         config.ListenerAddr,
-		"ARMHost":              config.ARMHost,
-		"LoginHost":            config.LoginHost,
-		"Clients[0].ID":        config.Clients[0].ID,
-		"Clients[0].Secret":    config.Clients[0].Secret,
-		"Clients[0].ObjectID":  config.Clients[0].ObjectID,
+		"TenantID":                 config.TenantID,
+		"SubscriptionID":           config.SubscriptionID,
+		"DefaultResourceGroup":     config.DefaultResourceGroup,
+		"ListenerAddr":             config.ListenerAddr,
+		"ARMHost":                  config.ARMHost,
+		"LoginHost":                config.LoginHost,
+		"Clients[0].ID":            config.Clients[0].ID,
+		"Clients[0].Secret":        config.Clients[0].Secret,
+		"Clients[0].ObjectID":      config.Clients[0].ObjectID,
+		"IMDAddr":                  config.IMDSAddr,
+		"ManagedIdentiy.ClientID":  config.ManagedIdentity.ClientID,
+		"ManagedIdentity.ObjectID": config.ManagedIdentity.ObjectID,
 	}
 	for name, val := range fields {
 		if val == "" {
@@ -46,6 +49,10 @@ func TestDefaultListenerAddrIsHostPort(t *testing.T) {
 
 	if _, _, err := net.SplitHostPort(config.ListenerAddr); err != nil {
 		t.Errorf("ListenerAddr = %q, not a valid host:port: %v", config.ListenerAddr, err)
+	}
+
+	if _, _, err := net.SplitHostPort(config.IMDSAddr); err != nil {
+		t.Errorf("IMDAddr = %q, not a valid host:port: %v", config.IMDSAddr, err)
 	}
 }
 
@@ -72,5 +79,18 @@ func TestFindClient(t *testing.T) {
 	}
 	if want.ID == want.ObjectID {
 		t.Errorf("client ID and ObjectID must differ (appid vs oid)")
+	}
+}
+
+func TestManagedIdentityIsDistinctPrincipal(t *testing.T) {
+	cfg := Default()
+	mi := cfg.ManagedIdentity
+	if mi.ClientID == mi.ObjectID {
+		t.Errorf("managed Identity ClientID and ObjectID mmust differ (appid vs oid)")
+	}
+	for _, cl := range cfg.Clients {
+		if cl.ObjectID == mi.ObjectID || cl.ID == mi.ClientID {
+			t.Errorf("managed identity collides with client %q", cl.ID)
+		}
 	}
 }

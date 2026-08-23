@@ -8,6 +8,7 @@ import (
 	"math/big"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -15,6 +16,8 @@ import (
 )
 
 var testKey = mustTestKey()
+
+const imdsQuery = "?api-version=2018-02-01&resource=https://management.azure.com/"
 
 func mustTestKey() *rsa.PrivateKey {
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
@@ -271,6 +274,99 @@ func TestTamperedTokenFailsVerification(t *testing.T) {
 	}
 }
 
+func TestIMDSHappyPath(t *testing.T) {
+	cfg := config.Default()
+	s := NewIMDS(cfg, testKey)
+	rec := imdsGet(t, s, imdsQuery, true)
+	if rec.Code != 200 {
+		t.Fatalf("status = %d, want 200; body %s", rec.Code, rec.Body.String())
+	}
+	// String-typed fields pin IMDS's legacy wire format: a JSON number in any
+	// of these fails to unmarshal.
+	var resp struct {
+		AccessToken string `json:"access_token"`
+		ClientID    string `json:"client_id"`
+		ExpiresIn   string `json:"expires_in"`
+		ExpiresOn   string `json:"expires_on"`
+		Resource    string `json:"resource"`
+		TokenType   string `json:"token_type"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("body is not the IMDS JSON shape: %v", err)
+	}
+	mi := cfg.ManagedIdentity
+	if resp.TokenType != "Bearer" || resp.Resource != "https://management.azure.com/" || resp.ClientID != mi.ClientID || resp.AccessToken == "" {
+		t.Fatalf("response = %+v, want Bearer / echoed resource / configured client_id / token", resp)
+	}
+	if _, err := strconv.ParseInt(resp.ExpiresIn, 10, 64); err != nil {
+		t.Errorf("expires_in = %q, not an integer string: %v", resp.ExpiresIn, err)
+	}
+	expiresOn, err := strconv.ParseInt(resp.ExpiresOn, 10, 64)
+	if err != nil {
+		t.Fatalf("expires_on = %q, not an integer string: %v", resp.ExpiresOn, err)
+	}
+
+	c, err := verifyJWT(&testKey.PublicKey, resp.AccessToken)
+	if err != nil {
+		t.Fatalf("verifyJWT: %v", err)
+	}
+	if c.ExpiresAt != expiresOn {
+		t.Errorf("expires_on = %d, want token exp %d", expiresOn, c.ExpiresAt)
+	}
+	if c.Audience != "https://management.azure.com" {
+		t.Errorf("aud = %q, want resource without trailing slash", c.Audience)
+	}
+	if c.ObjectID != mi.ObjectID || c.Subject != mi.ObjectID || c.AppID != mi.ClientID {
+		t.Errorf("identity claims = oid %q sub %q appid %q; want %q %q %q",
+			c.ObjectID, c.Subject, c.AppID, mi.ObjectID, mi.ObjectID, mi.ClientID)
+	}
+}
+
+func TestIMDSRejections(t *testing.T) {
+	cfg := config.Default()
+	s := NewIMDS(cfg, testKey)
+	tests := []struct {
+		name     string
+		query    string
+		metadata bool
+	}{
+		{"sdk probe: no header, no query", "", false},
+		{"no header", imdsQuery, false},
+		{"missing resource", "?api-version=2018-02-01", true},
+		{"missing api-version", "?resource=https://management.azure.com/", true},
+		{"unknown client_id", imdsQuery + "&client_id=77777777-7777-7777-7777-777777777777", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := imdsGet(t, s, tt.query, tt.metadata)
+			if rec.Code != 400 {
+				t.Errorf("status = %d, want 400; body %s", rec.Code, rec.Body.String())
+			}
+			var oe struct {
+				Error string `json:"error"`
+			}
+			if err := json.Unmarshal(rec.Body.Bytes(), &oe); err != nil {
+				t.Fatalf("body is not JSON: %v", err)
+			}
+			if oe.Error != "invalid_request" {
+				t.Errorf("error = %q, want invalid_request", oe.Error)
+			}
+		})
+	}
+}
+
+func TestIMDSRejectsPost(t *testing.T) {
+	cfg := config.Default()
+	s := NewIMDS(cfg, testKey)
+	req := httptest.NewRequest("POST", "http://169.254.169.254"+imdsTokenPath+imdsQuery, nil)
+	req.Header.Set("MetaData", "true")
+	rec := httptest.NewRecorder()
+	s.ServeHTTP(rec, req)
+	if rec.Code != 405 {
+		t.Errorf("status = %d, want 405", rec.Code)
+	}
+}
+
 func postToken(t *testing.T, h *Handler, form url.Values) *httptest.ResponseRecorder {
 	t.Helper()
 	cfg := config.Default()
@@ -290,4 +386,15 @@ func validForm(cfg config.Config) url.Values {
 		"client_secret": {cl.Secret},
 		"scope":         {"https://management.azure.com/.default"},
 	}
+}
+
+func imdsGet(t *testing.T, s *IMDS, query string, metadata bool) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest("GET", "http://169.254.169.254"+imdsTokenPath+query, nil)
+	if metadata {
+		req.Header.Set("Metadata", "true")
+	}
+	rec := httptest.NewRecorder()
+	s.ServeHTTP(rec, req)
+	return rec
 }

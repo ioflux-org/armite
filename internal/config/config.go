@@ -8,14 +8,25 @@ type Client struct {
 	ObjectID string `yaml:"object_id"`
 }
 
+// ManagedIdentity is the system-assigned managed identity IMDS issues tokens
+// for. It is a service principal like Client — ObjectID is the RBAC principal,
+// ClientID is what callers may pass as client_id — but it has no secret: the
+// platform (here, the IMDS listener) is the credential.
+type ManagedIdentity struct {
+	ClientID string `json:"client_id"`
+	ObjectID string `json:"object_id"`
+}
+
 type Config struct {
-	TenantID             string   `yaml:"tenant_id"`
-	SubscriptionID       string   `yaml:"subscription_id"`
-	DefaultResourceGroup string   `yaml:"default_resource_group"`
-	ListenerAddr         string   `yaml:"listener_addr"`
-	ARMHost              string   `yaml:"arm_host"`
-	LoginHost            string   `yaml:"login_host"`
-	Clients              []Client `yaml:"clients"`
+	TenantID             string          `yaml:"tenant_id"`
+	SubscriptionID       string          `yaml:"subscription_id"`
+	DefaultResourceGroup string          `yaml:"default_resource_group"`
+	ListenerAddr         string          `yaml:"listener_addr"`
+	ARMHost              string          `yaml:"arm_host"`
+	LoginHost            string          `yaml:"login_host"`
+	Clients              []Client        `yaml:"clients"`
+	IMDSAddr             string          `yaml:"imds_addr"`
+	ManagedIdentity      ManagedIdentity `yaml:"managed_identity"`
 }
 
 func Default() Config {
@@ -31,6 +42,11 @@ func Default() Config {
 			Secret:   "provisio-secret",
 			ObjectID: "44444444-4444-4444-4444-444444444444",
 		}},
+		IMDSAddr: "127.0.0.1:8081",
+		ManagedIdentity: ManagedIdentity{
+			ClientID: "55555555-5555-5555-5555-555555555555",
+			ObjectID: "66666666-6666-6666-6666-666666666666",
+		},
 	}
 
 	return config
