@@ -43,6 +43,12 @@ func NewIMDS(cfg config.Config, signingKey *rsa.PrivateKey) *IMDS {
 		mux:        http.NewServeMux(),
 	}
 	s.mux.HandleFunc("GET "+imdsTokenPath, s.serveToken)
+
+	// MSAL Node canonicalizes the endpoint to ".../token/". {$} matches only
+	// the end of the path; a plain trailing-slash pattern would match the
+	// whole subtree below it.
+	s.mux.HandleFunc("GET "+imdsTokenPath+"/{$}", s.serveToken)
+
 	return s
 }
 

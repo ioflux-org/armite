@@ -30,3 +30,4 @@ progress/
 /cmd/provisio/provisio
 data/
 node_modules/
+.claude/

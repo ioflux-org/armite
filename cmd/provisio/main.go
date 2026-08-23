@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/ioflux-org/provisio/internal/config"
+	"github.com/ioflux-org/provisio/internal/entra"
 	"github.com/ioflux-org/provisio/internal/pki"
 	"github.com/ioflux-org/provisio/internal/router"
 )
@@ -34,8 +35,22 @@ func main() {
 		Addr:    cfg.ListenerAddr,
 		Handler: router.New(cfg, signingKey),
 	}
+	imds := &http.Server{
+		Addr:    cfg.IMDSAddr,
+		Handler: entra.NewIMDS(cfg, signingKey),
+	}
 
-	log.Printf("Starting server on https://%s", cfg.ListenerAddr)
-	log.Printf("Trust the CA: curl --cacert %s https://%s/", filepath.Join(certDir, pki.CACertFile), cfg.ListenerAddr)
-	log.Fatal(server.ListenAndServeTLS(certFile, keyFile))
+	// Each server blocks its own goroutine; the first one to fail stops the
+	// process. The buffer lets the second sender finish without a receiver.
+	errc := make(chan error, 2)
+	go func() {
+		log.Printf("Starting server on https://%s", cfg.ListenerAddr)
+		log.Printf("Trust the CA: curl --cacert %s https://%s/", filepath.Join(certDir, pki.CACertFile), cfg.ListenerAddr)
+		errc <- server.ListenAndServeTLS(certFile, keyFile)
+	}()
+	go func() {
+		log.Printf("Starting IMDS on http://%s (SDKs: AZURE_POD_IDENTITY_AUTHORITY_HOST=http://%s)", cfg.IMDSAddr, cfg.IMDSAddr)
+		errc <- imds.ListenAndServe()
+	}()
+	log.Fatal(<-errc)
 }

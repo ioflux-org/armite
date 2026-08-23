@@ -367,6 +367,19 @@ func TestIMDSRejectsPost(t *testing.T) {
 	}
 }
 
+func TestIMDSAcceptsTrailingSlash(t *testing.T) {
+	// MSAL Node requests ".../token/" — what the SDK sends is the contract,
+	// not what the docs say.
+	s := NewIMDS(config.Default(), testKey)
+	req := httptest.NewRequest("GET", "http://169.254.169.254"+imdsTokenPath+"/"+imdsQuery, nil)
+	req.Header.Set("Metadata", "true")
+	rec := httptest.NewRecorder()
+	s.ServeHTTP(rec, req)
+	if rec.Code != 200 {
+		t.Errorf("status = %d, want 200; body %s", rec.Code, rec.Body.String())
+	}
+}
+
 func postToken(t *testing.T, h *Handler, form url.Values) *httptest.ResponseRecorder {
 	t.Helper()
 	cfg := config.Default()
