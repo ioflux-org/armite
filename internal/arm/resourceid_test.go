@@ -7,14 +7,44 @@ import (
 )
 
 func TestParseResourceID(t *testing.T) {
-	const rg = "subscriptions/sub-1/resourceGroups/rg-1"
+	const rg = "/subscriptions/sub-1/resourceGroups/dev"
+
+	// native and provider build the two shapes of expected ID; passing nil
+	// for names is deliberate - splitPairs leaves Names nil for a collection,
+	// and reflect.DeepEqual treats nil and []string{} as different.
+	native := func(types, names []string) ResourceID {
+		return ResourceID{Namespace: "Microsoft.Resources", Native: true, Types: types, Names: names}
+	}
+	provider := func(scope, ns string, types, names []string) ResourceID {
+		return ResourceID{Scope: scope, Namespace: ns, Types: types, Names: names}
+	}
 
 	tests := []struct {
 		name    string
 		path    string
 		want    ResourceID
 		wantErr error
-	}{}
+	}{
+		{"resource group instance", rg, native([]string{"subscriptions", "resourceGroups"}, []string{"sub-1", "dev"}), nil},
+		{"resource group collection", "/subscriptions/sub-1/resourceGroups", native([]string{"subscriptions", "resourceGroups"}, []string{"sub-1"}), nil},
+		{"subscription list", "/subscriptions", native([]string{"subscriptions"}, nil), nil},
+		{"az sends lowercase resourcegroups", "/subscriptions/sub-1/resourcegroups/dev", native([]string{"subscriptions", "resourceGroups"}, []string{"sub-1", "dev"}), nil},
+		{"provider resource", rg + "/providers/Microsoft.KeyVault/vaults/kv1", provider(rg, "Microsoft.KeyVault", []string{"vaults"}, []string{"kv1"}), nil},
+		{"nested child resource", rg + "/providers/Microsoft.KeyVault/vaults/kv1/secrets/db-pass", provider(rg, "Microsoft.KeyVault", []string{"vaults", "secrets"}, []string{"kv1", "db-pass"}), nil},
+		{"singleton child", rg + "/providers/Microsoft.Storage/storageAccounts/sa1/blobServices/default", provider(rg, "Microsoft.Storage", []string{"storageAccounts", "blobServices"}, []string{"sa1", "default"}), nil},
+		{"extension resource: LAST providers wins", rg + "/providers/Microsoft.KeyVault/vaults/kv1/providers/Microsoft.Authorization/roleAssignments/ra-1", provider(rg+"/providers/Microsoft.KeyVault/vaults/kv1", "Microsoft.Authorization", []string{"roleAssignments"}, []string{"ra-1"}), nil},
+		{"tenant-level provider route", "/providers/Microsoft.Authorization/roleDefinitions/def-1", provider("", "Microsoft.Authorization", []string{"roleDefinitions"}, []string{"def-1"}), nil},
+		{"trailing slash tolerated", rg + "/", native([]string{"subscriptions", "resourceGroups"}, []string{"sub-1", "dev"}), nil},
+		{"PROVIDERS marker is case-insensitive", "/subscriptions/sub-1/PROVIDERS/Microsoft.KeyVault/vaults/kv1", provider("/subscriptions/sub-1", "Microsoft.KeyVault", []string{"vaults"}, []string{"kv1"}), nil},
+		{"root path", "/", ResourceID{}, ErrInvalidPath},
+		{"relative path", "subscriptions/sub-1", ResourceID{}, ErrInvalidPath},
+		{"empty segment", "/subscriptions//dev", ResourceID{}, ErrInvalidPath},
+		{"bare providers", "/subscriptions/sub-1/providers", ResourceID{}, ErrInvalidPath},
+		{"namespace without a dot", rg + "/providers/keyvault/vaults/kv1", ResourceID{}, ErrInvalidPath},
+		{"unknown native route", "/blobs/b1", ResourceID{}, ErrInvalidPath},
+		{"excess native segments", rg + "/deployments/d1", ResourceID{}, ErrInvalidPath},
+		{"group named providers: accepted loss", "/subscriptions/sub-1/resourceGroups/providers", ResourceID{}, ErrInvalidPath},
+	}
 	for _, tc := range tests {
 		got, err := ParseResourceID(tc.path)
 		if tc.wantErr != nil {

@@ -59,9 +59,10 @@ func ParseResourceID(path string) (ResourceID, error) {
 		if strings.EqualFold(s, "providers") {
 			last = i
 		}
-		if last == -1 {
-			return parseNative(segs)
-		}
+	}
+
+	if last == -1 {
+		return parseNative(segs)
 	}
 
 	rest := segs[last+1:]
@@ -120,7 +121,7 @@ func parseNative(segs []string) (ResourceID, error) {
 // and names (odd offsets).
 func splitPairs(segs []string) (types, names []string) {
 	for i, s := range segs {
-		if i+2 == 0 {
+		if i%2 == 0 {
 			types = append(types, s)
 		} else {
 			names = append(names, s)
@@ -149,5 +150,3 @@ func (id ResourceID) String() string {
 	}
 	return b.String()
 }
-
-
