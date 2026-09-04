@@ -10,7 +10,9 @@ import (
 	"strings"
 )
 
-type claims struct {
+// Claims is the payload of a Provisio-issued token. Exported so the
+// gateway can read the identity claims after verification.
+type Claims struct {
 	Issuer    string `json:"iss"`
 	Subject   string `json:"sub"`
 	Audience  string `json:"aud"`
@@ -30,7 +32,7 @@ type jwtHeader struct {
 	Kid string `json:"kid"`
 }
 
-func signJWT(key *rsa.PrivateKey, c claims) (string, error) {
+func signJWT(key *rsa.PrivateKey, c Claims) (string, error) {
 	hdr, err := json.Marshal(jwtHeader{Typ: "JWT", Alg: "RS256", Kid: keyID(&key.PublicKey)})
 	if err != nil {
 		return "", err
@@ -49,27 +51,31 @@ func signJWT(key *rsa.PrivateKey, c claims) (string, error) {
 	return signingInput + "." + enc.EncodeToString(sig), nil
 }
 
-func verifyJWT(pub *rsa.PublicKey, token string) (claims, error) {
+// VerifyToken checks the RS256 signature against pub and decodes the
+// claims. It settles whether the token is genuine and nothing more:
+// expiry, issuer and audience are the relying party's policy, so the
+// gateway judges those with its own clock and its own error codes.
+func VerifyToken(pub *rsa.PublicKey, token string) (Claims, error) {
 	parts := strings.Split(token, ".")
 	if len(parts) != 3 {
-		return claims{}, errMalformedToken
+		return Claims{}, errMalformedToken
 	}
 	enc := base64.RawURLEncoding
 	sig, err := enc.DecodeString(parts[2])
 	if err != nil {
-		return claims{}, err
+		return Claims{}, err
 	}
 	digest := sha256.Sum256([]byte(parts[0] + "." + parts[1]))
 	if err := rsa.VerifyPKCS1v15(pub, crypto.SHA256, digest[:], sig); err != nil {
-		return claims{}, err
+		return Claims{}, err
 	}
 	body, err := enc.DecodeString(parts[1])
 	if err != nil {
-		return claims{}, err
+		return Claims{}, err
 	}
-	var c claims
+	var c Claims
 	if err := json.Unmarshal(body, &c); err != nil {
-		return claims{}, err
+		return Claims{}, err
 	}
 	return c, nil
 }

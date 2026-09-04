@@ -193,7 +193,7 @@ func TestTokenHappyPath(t *testing.T) {
 		t.Errorf("header = %+v, want RS256/JWT/matching kid", hdr)
 	}
 
-	c, err := verifyJWT(&testKey.PublicKey, resp.AccessToken)
+	c, err := VerifyToken(&testKey.PublicKey, resp.AccessToken)
 	if err != nil {
 		t.Fatalf("verifyJWT: %v", err)
 	}
@@ -269,7 +269,7 @@ func TestTamperedTokenFailsVerification(t *testing.T) {
 	}
 	forged := base64.RawURLEncoding.EncodeToString([]byte(`{"oid":"attacker"}`))
 	tampered := parts[0] + "." + forged + "." + parts[2]
-	if _, err := verifyJWT(&testKey.PublicKey, tampered); err == nil {
+	if _, err := VerifyToken(&testKey.PublicKey, tampered); err == nil {
 		t.Errorf("verifyJWT accepted a token with forged claims")
 	}
 }
@@ -306,7 +306,7 @@ func TestIMDSHappyPath(t *testing.T) {
 		t.Fatalf("expires_on = %q, not an integer string: %v", resp.ExpiresOn, err)
 	}
 
-	c, err := verifyJWT(&testKey.PublicKey, resp.AccessToken)
+	c, err := VerifyToken(&testKey.PublicKey, resp.AccessToken)
 	if err != nil {
 		t.Fatalf("verifyJWT: %v", err)
 	}

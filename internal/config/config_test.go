@@ -30,6 +30,7 @@ func TestDefaultHasNoEmptyFields(t *testing.T) {
 		"ListenerAddr":             config.ListenerAddr,
 		"ARMHost":                  config.ARMHost,
 		"LoginHost":                config.LoginHost,
+		"ARMAudience":              config.ARMAudience,
 		"Clients[0].ID":            config.Clients[0].ID,
 		"Clients[0].Secret":        config.Clients[0].Secret,
 		"Clients[0].ObjectID":      config.Clients[0].ObjectID,
@@ -92,5 +93,13 @@ func TestManagedIdentityIsDistinctPrincipal(t *testing.T) {
 		if cl.ObjectID == mi.ObjectID || cl.ID == mi.ClientID {
 			t.Errorf("managed identity collides with client %q", cl.ID)
 		}
+	}
+}
+
+func TestIssuerURL(t *testing.T) {
+	cfg := Default()
+	want := "https://login.localhost:8443/" + cfg.TenantID + "/v2.0"
+	if got := cfg.IssuerURL(); got != want {
+		t.Errorf("IssuerURL = %q, want %q", got, want)
 	}
 }

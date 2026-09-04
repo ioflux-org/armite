@@ -47,7 +47,7 @@ func (h *Handler) serveDiscovery(w http.ResponseWriter, r *http.Request) {
 	}
 	base := h.cfg.LoginBaseURL() + "/" + tenant
 	doc := discoveryDocument{
-		Issuer:                            base + "/v2.0",
+		Issuer:                            h.cfg.IssuerURL(),
 		AuthorizationEndpoint:             base + "/oauth2/v2.0/authorize",
 		TokenEndpoint:                     base + "/oauth2/v2.0/token",
 		JWKSURI:                           base + "/discovery/v2.0/keys",

@@ -24,6 +24,7 @@ type Config struct {
 	ListenerAddr         string          `yaml:"listener_addr"`
 	ARMHost              string          `yaml:"arm_host"`
 	LoginHost            string          `yaml:"login_host"`
+	ARMAudience          string          `yaml:"arm_audience"`
 	Clients              []Client        `yaml:"clients"`
 	IMDSAddr             string          `yaml:"imds_addr"`
 	ManagedIdentity      ManagedIdentity `yaml:"managed_identity"`
@@ -37,6 +38,7 @@ func Default() Config {
 		ListenerAddr:         "127.0.0.1:8443",
 		ARMHost:              "management.localhost",
 		LoginHost:            "login.localhost",
+		ARMAudience:          "https://management.azure.com",
 		Clients: []Client{{
 			ID:       "33333333-3333-3333-3333-333333333333",
 			Secret:   "provisio-secret",
@@ -58,6 +60,13 @@ func (c Config) LoginBaseURL() string {
 		return "https://" + c.LoginHost
 	}
 	return "https://" + c.LoginHost + ":" + port
+}
+
+// IssuerURL is the tenant's OIDC issuer: minted into every token's iss
+// claim, published by discovery, and demanded by the gateway. One
+// definition keeps the three from drifting apart.
+func (c Config) IssuerURL() string {
+	return c.LoginBaseURL() + "/" + c.TenantID + "/v2.0"
 }
 
 func (c Config) FindClient(id string) (Client, bool) {

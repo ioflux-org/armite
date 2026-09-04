@@ -7,10 +7,14 @@ import (
 )
 
 const (
-	CodeAuthenticationFailed       = "AuthenticationFailed"
-	CodeAuthorizationFailed        = "AuthorizationFailed"
-	CodeResourceNotFound           = "ResourceNotFound"
-	CodeInvalidApiVersionParameter = "InvalidApiVersionParameter"
+	CodeAuthenticationFailed               = "AuthenticationFailed"
+	CodeAuthorizationFailed                = "AuthorizationFailed"
+	CodeResourceNotFound                   = "ResourceNotFound"
+	CodeInvalidApiVersionParameter         = "InvalidApiVersionParameter"
+	CodeInvalidAuthenticationToken         = "InvalidAuthenticationToken"
+	CodeExpiredAuthenticationToken         = "ExpiredAuthenticationToken"
+	CodeInvalidAuthenticationTokenAudience = "InvalidAuthenticationTokenAudience"
+	CodeInvalidAuthenticationTokenTenant   = "InvalidAuthenticationTokenTenant"
 )
 
 type ErrorInfo struct {

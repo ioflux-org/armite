@@ -82,11 +82,11 @@ func audienceFromScope(scope string) (string, bool) {
 }
 
 // newAppClaims builds the claims for an application (service principal) token.
-// Both token sources — client credentials and IMDS — mint the same shape; only
+// Both token sources - client credentials and IMDS - mint the same shape; only
 // who (objectID/appID) and for what (aud) differ.
-func newAppClaims(cfg config.Config, aud, objectID, appID string, now time.Time) claims {
-	return claims{
-		Issuer:    cfg.LoginBaseURL() + "/" + cfg.TenantID + "/v2.0",
+func newAppClaims(cfg config.Config, aud, objectID, appID string, now time.Time) Claims {
+	return Claims{
+		Issuer:    cfg.IssuerURL(),
 		Subject:   objectID,
 		Audience:  aud,
 		IssuedAt:  now.Unix(),
