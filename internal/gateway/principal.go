@@ -22,8 +22,7 @@ func withPrincipal(ctx context.Context, p Principal) context.Context {
 
 // FromContext returns the Principal the Authenticator stored on the
 // request, and false for a request that did not pass authentication.
-func FronContext(ctx context.Context) (Principal, bool) {
+func FromContext(ctx context.Context) (Principal, bool) {
 	p, ok := ctx.Value(principalKey{}).(Principal)
 	return p, ok
 }
-
