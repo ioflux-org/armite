@@ -4,9 +4,11 @@ import (
 	"log"
 	"net/http"
 	"path/filepath"
+	"time"
 
 	"github.com/ioflux-org/provisio/internal/config"
 	"github.com/ioflux-org/provisio/internal/entra"
+	"github.com/ioflux-org/provisio/internal/gateway"
 	"github.com/ioflux-org/provisio/internal/pki"
 	"github.com/ioflux-org/provisio/internal/router"
 )
@@ -31,9 +33,11 @@ func main() {
 		log.Fatal(err)
 	}
 
+	login := entra.New(cfg, signingKey)
+	arm := gateway.New(cfg, &signingKey.PublicKey, time.Now)
 	server := &http.Server{
 		Addr:    cfg.ListenerAddr,
-		Handler: router.New(cfg, signingKey),
+		Handler: router.New(cfg, login, arm),
 	}
 	imds := &http.Server{
 		Addr:    cfg.IMDSAddr,
