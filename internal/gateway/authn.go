@@ -47,13 +47,13 @@ func (a *Authenticator) Authenticate(next http.Handler) http.Handler {
 		}
 		c, err := entra.VerifyToken(a.pub, token)
 		if err != nil {
-			a.unauthorized(w, azerr.CodeInvalidAuthenticationToken, "the access token is invalid.")
+			a.unauthorized(w, azerr.CodeInvalidAuthenticationToken, "The access token is invalid.")
 			return
 		}
 		now := a.now()
 		if exp := time.Unix(c.ExpiresAt, 0); !now.Before(exp) {
 			a.unauthorized(w, azerr.CodeExpiredAuthenticationToken,
-				fmt.Sprintf("The access token expiry UTC time is '%s' is earlier than the current UTC time '%s'.",
+				fmt.Sprintf("The access token expiry UTC time '%s' is earlier than the current UTC time '%s'.",
 					exp.UTC().Format(time.RFC3339), now.UTC().Format(time.RFC3339)))
 			return
 		}
@@ -63,17 +63,17 @@ func (a *Authenticator) Authenticate(next http.Handler) http.Handler {
 		}
 		if c.Issuer != a.issuer {
 			a.unauthorized(w, azerr.CodeInvalidAuthenticationTokenTenant,
-				fmt.Sprintf("The access token is for the wrong issuer '%s'. It must match the tenant issuer '%s'.", c.Issuer, a.issuer))
+				fmt.Sprintf("The access token is from the wrong issuer '%s'. It must match the tenant issuer '%s'.", c.Issuer, a.issuer))
 			return
 		}
 		if strings.TrimSuffix(c.Audience, "/") != a.audience {
 			a.unauthorized(w, azerr.CodeInvalidAuthenticationTokenAudience,
-				fmt.Sprintf("The access token has been obtained for wrong audience '%s'. It should exactly match the allowed audience '%s'", c.Audience, a.audience))
+				fmt.Sprintf("The access token has been obtained for wrong audience '%s'. It should exactly match the allowed audience '%s'.", c.Audience, a.audience))
 			return
 		}
 		if c.ObjectID == "" {
 			a.unauthorized(w, azerr.CodeInvalidAuthenticationToken,
-				"The received access token is not valid: the claim 'oid' should be present")
+				"The received access token is not valid: the claim 'oid' should be present.")
 			return
 		}
 		p := Principal{ObjectID: c.ObjectID, AppID: c.AppID, TenantID: c.TenantID}

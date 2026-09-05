@@ -8,7 +8,6 @@ const cred = new ClientSecretCredential(
 );
 
 const tok = await cred.getToken("https://management.azure.com/.default");
-console.log("Token: ", JSON.stringify(cred, null, 2));
 const res = await fetch(
     "https://management.localhost:8443/subscriptions?api-version=2022-12-01",
     {

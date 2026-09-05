@@ -195,7 +195,7 @@ func TestTokenHappyPath(t *testing.T) {
 
 	c, err := VerifyToken(&testKey.PublicKey, resp.AccessToken)
 	if err != nil {
-		t.Fatalf("verifyJWT: %v", err)
+		t.Fatalf("VerifyToken: %v", err)
 	}
 	wantIss := cfg.LoginBaseURL() + "/" + cfg.TenantID + "/v2.0"
 	if c.Issuer != wantIss {
@@ -270,7 +270,7 @@ func TestTamperedTokenFailsVerification(t *testing.T) {
 	forged := base64.RawURLEncoding.EncodeToString([]byte(`{"oid":"attacker"}`))
 	tampered := parts[0] + "." + forged + "." + parts[2]
 	if _, err := VerifyToken(&testKey.PublicKey, tampered); err == nil {
-		t.Errorf("verifyJWT accepted a token with forged claims")
+		t.Errorf("VerifyToken accepted a token with forged claims")
 	}
 }
 
@@ -308,7 +308,7 @@ func TestIMDSHappyPath(t *testing.T) {
 
 	c, err := VerifyToken(&testKey.PublicKey, resp.AccessToken)
 	if err != nil {
-		t.Fatalf("verifyJWT: %v", err)
+		t.Fatalf("VerifyToken: %v", err)
 	}
 	if c.ExpiresAt != expiresOn {
 		t.Errorf("expires_on = %d, want token exp %d", expiresOn, c.ExpiresAt)

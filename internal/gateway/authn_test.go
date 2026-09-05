@@ -66,7 +66,7 @@ func TestAuthenticate(t *testing.T) {
 	const scope = "https://management.azure.com/.default"
 
 	good := mintToken(t, cfg, testKey, scope)
-	foreign := mintToken(t, stranger, otherKey, scope)
+	foreign := mintToken(t, cfg, otherKey, scope)
 	graph := mintToken(t, cfg, testKey, "https://graph.microsoft.com/.default")
 	slashy := mintToken(t, cfg, testKey, "https://management.azure.com//.default")
 	wrongTenant := mintToken(t, stranger, testKey, scope)
@@ -74,7 +74,7 @@ func TestAuthenticate(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		autz     string
+		authz    string
 		now      time.Time
 		wantCode string // x-ms-error-code of the 401; "" means next must be reached
 	}{
@@ -101,8 +101,8 @@ func TestAuthenticate(t *testing.T) {
 		})
 		auth := NewAuthenticator(cfg, &testKey.PublicKey, func() time.Time { return tc.now })
 		req := httptest.NewRequest(http.MethodGet, "/subscriptions?api-version=2022-12-01", nil)
-		if tc.autz != "" {
-			req.Header.Set("Authorization", tc.autz)
+		if tc.authz != "" {
+			req.Header.Set("Authorization", tc.authz)
 		}
 		rec := httptest.NewRecorder()
 		auth.Authenticate(next).ServeHTTP(rec, req)
