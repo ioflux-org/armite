@@ -8,6 +8,7 @@ import (
 
 	"github.com/ioflux-org/provisio/internal/azerr"
 	"github.com/ioflux-org/provisio/internal/config"
+	"github.com/ioflux-org/provisio/internal/rbac"
 )
 
 // Gateway is the management-plane handler: the ARM request pipeline. In
@@ -17,11 +18,15 @@ type Gateway struct {
 	pipeline http.Handler
 }
 
-// New assembles the pipeline. pub verifies tokens minted with the private
-// key handed to entra; now is the clock the Authenticator judges expiry by.
-func New(cfg config.Config, pub *rsa.PublicKey, now func() time.Time) *Gateway {
-	auth := NewAuthenticator(cfg, pub, now)
-	return &Gateway{pipeline: auth.Authenticate(http.HandlerFunc(notYetImplemented))}
+// New assembles the pipeline: Authenticate -> RouteRequest -> Authorize ->
+// placeholder. Handlers wrap innermost-first, so the chain is built in
+// the reverse of the order it runs.
+func New(cfg config.Config, pub *rsa.PublicKey, now func() time.Time, checker *rbac.Checker) *Gateway {
+	var pipeline http.Handler = http.HandlerFunc(notYetImplemented)
+	pipeline = NewAuthorizer(checker).Authorize(pipeline)
+	pipeline = RouteRequest(pipeline)
+	pipeline = NewAuthenticator(cfg, pub, now).Authenticate(pipeline)
+	return &Gateway{pipeline: pipeline}
 }
 
 func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {

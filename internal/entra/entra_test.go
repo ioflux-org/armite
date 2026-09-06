@@ -368,7 +368,7 @@ func TestIMDSRejectsPost(t *testing.T) {
 }
 
 func TestIMDSAcceptsTrailingSlash(t *testing.T) {
-	// MSAL Node requests ".../token/" — what the SDK sends is the contract,
+	// MSAL Node requests ".../token/" - what the SDK sends is the contract,
 	// not what the docs say.
 	s := NewIMDS(config.Default(), testKey)
 	req := httptest.NewRequest("GET", "http://169.254.169.254"+imdsTokenPath+"/"+imdsQuery, nil)

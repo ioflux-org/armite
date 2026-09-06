@@ -15,6 +15,9 @@ const (
 	CodeExpiredAuthenticationToken         = "ExpiredAuthenticationToken"
 	CodeInvalidAuthenticationTokenAudience = "InvalidAuthenticationTokenAudience"
 	CodeInvalidAuthenticationTokenTenant   = "InvalidAuthenticationTokenTenant"
+	CodeMissingApiVersionParameter         = "MissingApiVersionParameter"
+	CodeMethodNotAllowed                   = "MethodNotAllowed"
+	CodeInternalServerError                = "InternalServerError"
 )
 
 type ErrorInfo struct {

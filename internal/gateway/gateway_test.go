@@ -11,28 +11,37 @@ import (
 	"github.com/ioflux-org/provisio/internal/config"
 )
 
-// TestGatewayPipeline pins the M0 acceptance on the assembled pipeline:
-// an anonymous request gets 401 whatever the path, and an authenticated
-// one reaches the placeholder.
+// TestGatewayPipeline pins the assembled pipeline end to end: the M0
+// acceptance (anonymous -> 401 whatever the path) plus one authorized
+// request reaching the placeholder and one forbidden by RBAC.
 func TestGatewayPipeline(t *testing.T) {
 	cfg := config.Default()
-	g := New(cfg, &testKey.PublicKey, time.Now)                                  // testKey is declared in authn_test.go
-	token := mintToken(t, cfg, testKey, "https://management.azure.com/.default") // mintToken is declared in authn_test.go
+	g := New(cfg, &testKey.PublicKey, time.Now, newChecker(t, SeedAssignments(cfg))) //  newChecker defined in authz_test.go                              // testKey is declared in authn_test.go
+	token := mintToken(t, cfg, testKey, "https://management.azure.com/.default")     // mintToken is declared in authn_test.go
+	miToken := mintIMDSToken(t, cfg, testKey)
+
+	const v = "?api-version=2022-12-01"
+	sub := "/subscriptions/" + cfg.SubscriptionID
+	ra := sub + "/providers/Microsoft.Authorization/roleAssignments/ra-1"
 
 	tests := []struct {
 		name       string
+		method     string
 		path       string
 		token      string
 		wantStatus int
 		wantCode   string
 	}{
-		{"anonymous", "/subscriptions?api-version=2022-12-01", "", 401, azerr.CodeAuthenticationFailed},
-		{"anonymous garbage path is 401 not 404", "/no/such/thing", "", 401, azerr.CodeAuthenticationFailed},
-		{"authenticated reaches placeholder", "/subscriptions?api-version=2022-12-01", token, 404, azerr.CodeResourceNotFound},
+		{"anonymous", http.MethodGet, "/subscriptions" + v, "", 401, azerr.CodeAuthenticationFailed},
+		{"anonymous garbage path is 401 not 404", http.MethodGet, "/no/such/thing", "", 401, azerr.CodeAuthenticationFailed},
+		{"subscription list reaches placeholder", http.MethodGet, "/subscriptions" + v, token, 404, azerr.CodeResourceNotFound},
+		{"owner group write reaches placeholder", http.MethodPut, sub + "/resourceGroups/dev" + v, token, 404, azerr.CodeResourceNotFound},
+		{"contributor role grant is forbidden", http.MethodPut, ra + v, miToken, 403, azerr.CodeAuthorizationFailed},
+		{"missing api-version after authentication", http.MethodGet, "/subscriptions", token, 400, azerr.CodeMissingApiVersionParameter},
 	}
 
 	for _, tc := range tests {
-		req := httptest.NewRequest(http.MethodGet, "https://management.localhost:8443"+tc.path, nil)
+		req := httptest.NewRequest(tc.method, "https://management.localhost:8443"+tc.path, nil)
 		if tc.token != "" {
 			req.Header.Set("Authorization", "Bearer "+tc.token)
 		}

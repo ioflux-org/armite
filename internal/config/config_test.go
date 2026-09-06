@@ -103,3 +103,26 @@ func TestIssuerURL(t *testing.T) {
 		t.Errorf("IssuerURL = %q, want %q", got, want)
 	}
 }
+
+func TestDefaultSeedsBootAssignments(t *testing.T) {
+	cfg := Default()
+	if len(cfg.RoleAssignments) != 2 {
+		t.Fatalf("RoleAssignments = %d, want 2 (client + managed identity)", len(cfg.RoleAssignments))
+	}
+	sub := "/subscriptions/" + cfg.SubscriptionID
+	want := map[string]string{
+		cfg.Clients[0].ObjectID:      OwnerRoleID,
+		cfg.ManagedIdentity.ObjectID: ContributorRoleID,
+	}
+	for _, a := range cfg.RoleAssignments {
+		if a.Scope != sub {
+			t.Errorf("seed for %s: scope %q, want %q", a.PrincipalID, a.Scope, sub)
+		}
+		if role, ok := want[a.PrincipalID]; !ok || role != a.RoleDefinitionID {
+			t.Errorf("seed for %s: role %q, want %q", a.PrincipalID, a.RoleDefinitionID, role)
+		}
+		if !guidRe.MatchString(a.RoleDefinitionID) {
+			t.Errorf("seed role %q is not a bare lowercase GUID", a.RoleDefinitionID)
+		}
+	}
+}
