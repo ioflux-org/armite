@@ -26,6 +26,7 @@ go.work.sum
 # Local env / scratch
 .env
 progress/
+research/
 
 /cmd/provisio/provisio
 data/
