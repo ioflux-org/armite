@@ -18,6 +18,7 @@ const (
 	CodeMissingApiVersionParameter         = "MissingApiVersionParameter"
 	CodeMethodNotAllowed                   = "MethodNotAllowed"
 	CodeInternalServerError                = "InternalServerError"
+	CodeInvalidResourceNamespace           = "InvalidResourceNamespace"
 )
 
 type ErrorInfo struct {
