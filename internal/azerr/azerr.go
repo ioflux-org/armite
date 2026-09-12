@@ -19,6 +19,11 @@ const (
 	CodeMethodNotAllowed                   = "MethodNotAllowed"
 	CodeInternalServerError                = "InternalServerError"
 	CodeInvalidResourceNamespace           = "InvalidResourceNamespace"
+	CodeResourceGroupNotFound              = "ResourceGroupNotFound"
+	CodeLocationRequired                   = "LocationRequired"
+	CodeInvalidResourceGroupLocation       = "InvalidResourceGroupLocation"
+	CodeInvalidResourceGroupName           = "InvalidResourceGroupName"
+	CodeInvalidRequestContent              = "InvalidRequestContent"
 )
 
 type ErrorInfo struct {

@@ -10,8 +10,10 @@ import (
 	"github.com/ioflux-org/provisio/internal/entra"
 	"github.com/ioflux-org/provisio/internal/gateway"
 	"github.com/ioflux-org/provisio/internal/pki"
+	"github.com/ioflux-org/provisio/internal/provider/resources"
 	"github.com/ioflux-org/provisio/internal/rbac"
 	"github.com/ioflux-org/provisio/internal/router"
+	"github.com/ioflux-org/provisio/internal/store"
 )
 
 const certDir = "certs"
@@ -38,16 +40,17 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	store := rbac.NewAssignmentStore()
-	if err := rbac.Seed(store, defs, gateway.SeedAssignments(cfg)); err != nil {
+	assignments := rbac.NewAssignmentStore()
+	if err := rbac.Seed(assignments, defs, gateway.SeedAssignments(cfg)); err != nil {
 		log.Fatal(err)
 	}
-	checker := rbac.NewChecker(defs, store)
+	checker := rbac.NewChecker(defs, assignments)
 
 	login := entra.New(cfg, signingKey)
 
 	registry := gateway.NewRegistry()
-	// Providers register here; M3d-3 adds Microsoft.Resources.
+	registry.Register("Microsoft.Resources", resources.New(store.New()))
+
 	arm := gateway.New(cfg, &signingKey.PublicKey, time.Now, checker, registry)
 	server := &http.Server{
 		Addr:    cfg.ListenerAddr,
