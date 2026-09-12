@@ -11,16 +11,19 @@ import (
 )
 
 // Gateway is the management-plane handler: the ARM request pipeline,
-// authentication -> routing -> authorization -> provider dispatch.
+// authentication -> routing -> authorization -> provider dispatch, plus
+// the one path ARM serves anonymously, /metadata/endpoints.
 type Gateway struct {
-	pipeline http.Handler
+	handler http.Handler
 }
 
 // New assembles the pipeline: Authenticate -> RouteRequest -> Authorize ->
 // terminal. Handlers wrap innermost-first, so the chain is built in
 // the reverse of the order it runs. The terminal is injected - main passes
 // the provider Registry, tests pass spies - so this package never
-// imports a provider, and providers may import it for Route.
+// imports a provider, and providers may import it for Route. The
+// endpoints document is mounted beside the pipeline, not inside it:
+// clients read it before they hold any token.
 func New(
 	cfg config.Config, pub *rsa.PublicKey, now func() time.Time,
 	checker *rbac.Checker, terminal http.Handler,
@@ -29,10 +32,14 @@ func New(
 	pipeline = NewAuthorizer(checker).Authorize(pipeline)
 	pipeline = RouteRequest(pipeline)
 	pipeline = NewAuthenticator(cfg, pub, now).Authenticate(pipeline)
-	return &Gateway{pipeline: pipeline}
+
+	mux := http.NewServeMux()
+	mux.Handle("/metadata/endpoints", serveEndpoints(cfg))
+	mux.Handle("/", pipeline)
+	return &Gateway{handler: mux}
 }
 
 func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Printf("arm: %s %s", r.Method, r.URL.RequestURI())
-	g.pipeline.ServeHTTP(w, r)
+	g.handler.ServeHTTP(w, r)
 }

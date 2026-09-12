@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/ioflux-org/provisio/internal/azerr"
+	"github.com/ioflux-org/provisio/internal/config"
 	"github.com/ioflux-org/provisio/internal/gateway"
 	"github.com/ioflux-org/provisio/internal/store"
 )
@@ -17,6 +18,11 @@ const (
 	sub = "/subscriptions/22222222-2222-2222-2222-222222222222"
 	v   = "?api-version=2021-04-01"
 )
+
+// newProvider builds a provider on the default config and an empty store.
+func newProvider() *Provider {
+	return New(config.Default(), store.New())
+}
 
 // serve runs one request through RouteRequest and the provider: the
 // pipeline as the provider sees it, after authentication and
@@ -48,7 +54,7 @@ func decodeGroup(t *testing.T, rec *httptest.ResponseRecorder) store.Resource {
 }
 
 func TestGroupLifecycle(t *testing.T) {
-	p := New(store.New())
+	p := newProvider()
 	rg := sub + "/resourceGroups/Dev"
 
 	rec := serve(t, p, http.MethodPut, rg, `{"location":"eastus","tags":{"env":"dev"}}`)
@@ -131,7 +137,7 @@ func TestPutRejections(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := New(store.New())
+			p := newProvider()
 			if tt.before != "" {
 				if rec := serve(t, p, http.MethodPut, sub+tt.path, tt.before); rec.Code != http.StatusCreated {
 					t.Fatalf("setup PUT: status = %d %s", rec.Code, code(rec))
@@ -155,7 +161,7 @@ func TestPutAccepts(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rec := serve(t, New(store.New()), http.MethodPut, sub+tt.path, tt.body)
+			rec := serve(t, newProvider(), http.MethodPut, sub+tt.path, tt.body)
 			if rec.Code != http.StatusCreated {
 				t.Errorf("status = %d %s, want 201", rec.Code, code(rec))
 			}
@@ -164,7 +170,7 @@ func TestPutAccepts(t *testing.T) {
 }
 
 func TestListScopedAndSorted(t *testing.T) {
-	p := New(store.New())
+	p := newProvider()
 	other := "/subscriptions/99999999-9999-9999-9999-999999999999"
 	for _, path := range []string{"/resourceGroups/beta", "/resourceGroups/alpha"} {
 		serve(t, p, http.MethodPut, sub+path, `{"location":"eastus"}`)
@@ -188,14 +194,14 @@ func TestListScopedAndSorted(t *testing.T) {
 }
 
 func TestListEmptyIsArray(t *testing.T) {
-	rec := serve(t, New(store.New()), http.MethodGet, sub+"/resourceGroups", "")
+	rec := serve(t, newProvider(), http.MethodGet, sub+"/resourceGroups", "")
 	if rec.Code != http.StatusOK || rec.Body.String() != `{"value":[]}` {
 		t.Errorf("empty list = %d %s, want 200 {\"value\":[]}", rec.Code, rec.Body.String())
 	}
 }
 
 func TestMethodsNotSupported(t *testing.T) {
-	p := New(store.New())
+	p := newProvider()
 	rg := sub + "/resourceGroups/dev"
 	serve(t, p, http.MethodPut, rg, `{"location":"eastus"}`)
 
@@ -211,19 +217,84 @@ func TestMethodsNotSupported(t *testing.T) {
 	}
 }
 
-// TestSubscriptionsNotYet pins the M3f placeholder so that replacing it
-// is a deliberate change.
-func TestSubscriptionsNotYet(t *testing.T) {
-	rec := serve(t, New(store.New()), http.MethodGet, "/subscriptions", "")
+func TestSubscriptions(t *testing.T) {
+	cfg := config.Default()
+	p := newProvider()
+
+	rec := serve(t, p, http.MethodGet, "/subscriptions", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list: status = %d %s, want 200", rec.Code, code(rec))
+	}
+	var list struct {
+		Value []struct {
+			ID             string `json:"id"`
+			SubscriptionID string `json:"subscriptionId"`
+			DisplayName    string `json:"displayName"`
+			State          string `json:"state"`
+			TenantID       string `json:"tenantId"`
+		} `json:"value"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &list); err != nil {
+		t.Fatalf("list body: %v", err)
+	}
+	if len(list.Value) != 1 {
+		t.Fatalf("list = %d subscriptions, want 1", len(list.Value))
+	}
+	got := list.Value[0]
+	if got.ID != sub || got.SubscriptionID != cfg.SubscriptionID || got.TenantID != cfg.TenantID {
+		t.Errorf("subscription ids = %+v, want %s under tenant %s", got, sub, cfg.TenantID)
+	}
+	if got.State != "Enabled" || got.DisplayName != cfg.SubscriptionName {
+		t.Errorf("subscription = %+v, want Enabled and named %q", got, cfg.SubscriptionName)
+	}
+
+	rec = serve(t, p, http.MethodGet, strings.ToUpper(sub), "")
+	if rec.Code != http.StatusOK {
+		t.Errorf("get with other casing: status = %d %s, want 200", rec.Code, code(rec))
+	}
+	rec = serve(t, p, http.MethodGet, "/subscriptions/99999999-9999-9999-9999-999999999999", "")
+	if rec.Code != http.StatusNotFound || code(rec) != azerr.CodeSubscriptionNotFound {
+		t.Errorf("get unknown: status = %d code %q, want 404 SubscriptionNotFound", rec.Code, code(rec))
+	}
+	rec = serve(t, p, http.MethodPost, "/subscriptions", `{}`)
+	if rec.Code != http.StatusMethodNotAllowed {
+		t.Errorf("post: status = %d, want 405", rec.Code)
+	}
+}
+
+func TestTenants(t *testing.T) {
+	cfg := config.Default()
+	p := newProvider()
+
+	rec := serve(t, p, http.MethodGet, "/tenants", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list: status = %d %s, want 200", rec.Code, code(rec))
+	}
+	var list struct {
+		Value []struct {
+			ID       string `json:"id"`
+			TenantID string `json:"tenantId"`
+		} `json:"value"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &list); err != nil {
+		t.Fatalf("list body: %v", err)
+	}
+	if len(list.Value) != 1 {
+		t.Fatalf("tenants = %+v, want exactly one", list.Value)
+	}
+	if got := list.Value[0]; got.TenantID != cfg.TenantID || got.ID != "/tenants/"+cfg.TenantID {
+		t.Errorf("tenant = %+v, want %s", got, cfg.TenantID)
+	}
+	rec = serve(t, p, http.MethodGet, "/tenants/"+cfg.TenantID, "")
 	if rec.Code != http.StatusNotFound || code(rec) != azerr.CodeResourceNotFound {
-		t.Errorf("status = %d code %q, want 404 ResourceNotFound", rec.Code, code(rec))
+		t.Errorf("get one tenant: status = %d code %q, want 404 ResourceNotFound", rec.Code, code(rec))
 	}
 }
 
 func TestUnroutedRequest(t *testing.T) {
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, sub+"/resourceGroups"+v, nil)
-	New(store.New()).ServeHTTP(rec, req)
+	newProvider().ServeHTTP(rec, req)
 	if rec.Code != http.StatusInternalServerError {
 		t.Errorf("status = %d, want 500 for a request that skipped RouteRequest", rec.Code)
 	}

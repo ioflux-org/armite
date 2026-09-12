@@ -39,6 +39,7 @@ func TestGatewayPipeline(t *testing.T) {
 	}{
 		{"anonymous", http.MethodGet, "/subscriptions" + v, "", 401, azerr.CodeAuthenticationFailed},
 		{"anonymous garbage path is 401 not 404", http.MethodGet, "/no/such/thing", "", 401, azerr.CodeAuthenticationFailed},
+		{"endpoints document is anonymous", http.MethodGet, "/metadata/endpoints?api-version=2022-09-01", "", 200, ""},
 		{"subscription list reaches the provider", http.MethodGet, "/subscriptions" + v, token, 200, ""},
 		{"owner group write reaches the provider", http.MethodPut, sub + "/resourceGroups/dev" + v, token, 200, ""},
 		{"owner write to unknown namespace", http.MethodPut, nope + v, token, 404, azerr.CodeInvalidResourceNamespace},

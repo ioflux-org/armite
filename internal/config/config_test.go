@@ -65,6 +65,14 @@ func TestLoginBaseURL(t *testing.T) {
 	}
 }
 
+func TestARMBaseURL(t *testing.T) {
+	got := Default().ARMBaseURL()
+	want := "https://management.localhost:8443"
+	if got != want {
+		t.Errorf("ARMBaseURL = %q, want %q", got, want)
+	}
+}
+
 func TestFindClient(t *testing.T) {
 	cfg := Default()
 	if len(cfg.Clients) == 0 {

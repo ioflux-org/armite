@@ -49,7 +49,7 @@ func main() {
 	login := entra.New(cfg, signingKey)
 
 	registry := gateway.NewRegistry()
-	registry.Register("Microsoft.Resources", resources.New(store.New()))
+	registry.Register("Microsoft.Resources", resources.New(cfg, store.New()))
 
 	arm := gateway.New(cfg, &signingKey.PublicKey, time.Now, checker, registry)
 	server := &http.Server{

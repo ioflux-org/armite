@@ -24,6 +24,7 @@ const (
 	CodeInvalidResourceGroupLocation       = "InvalidResourceGroupLocation"
 	CodeInvalidResourceGroupName           = "InvalidResourceGroupName"
 	CodeInvalidRequestContent              = "InvalidRequestContent"
+	CodeSubscriptionNotFound               = "SubscriptionNotFound"
 )
 
 type ErrorInfo struct {

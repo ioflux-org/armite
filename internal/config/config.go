@@ -39,6 +39,8 @@ type Config struct {
 	TenantID             string           `yaml:"tenant_id"`
 	SubscriptionID       string           `yaml:"subscription_id"`
 	DefaultResourceGroup string           `yaml:"default_resource_group"`
+	SubscriptionName     string           `yaml:"subscription_name"`
+	TenantName           string           `yaml:"tenant_name"`
 	ListenerAddr         string           `yaml:"listener_addr"`
 	ARMHost              string           `yaml:"arm_host"`
 	LoginHost            string           `yaml:"login_host"`
@@ -54,6 +56,8 @@ func Default() Config {
 		TenantID:             "11111111-1111-1111-1111-111111111111",
 		SubscriptionID:       "22222222-2222-2222-2222-222222222222",
 		DefaultResourceGroup: "default-rg",
+		SubscriptionName:     "Provisio Subscription",
+		TenantName:           "Provisio",
 		ListenerAddr:         "127.0.0.1:8443",
 		ARMHost:              "management.localhost",
 		LoginHost:            "login.localhost",
@@ -79,11 +83,22 @@ func Default() Config {
 }
 
 func (c Config) LoginBaseURL() string {
+	return c.baseURL(c.LoginHost)
+}
+
+// ARMBaseURL is the management-plane origin clients register as their
+// resource manager endpoint. Published by /metadata/endpoints, so az and
+// Terraform learn it from one place.
+func (c Config) ARMBaseURL() string {
+	return c.baseURL(c.ARMHost)
+}
+
+func (c Config) baseURL(host string) string {
 	_, port, err := net.SplitHostPort(c.ListenerAddr)
 	if err != nil {
-		return "https://" + c.LoginHost
+		return "https://" + host
 	}
-	return "https://" + c.LoginHost + ":" + port
+	return "https://" + host + ":" + port
 }
 
 // IssuerURL is the tenant's OIDC issuer: minted into every token's iss
