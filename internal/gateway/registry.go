@@ -53,5 +53,3 @@ func (reg *Registry) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	h.ServeHTTP(w, r)
 }
-
-

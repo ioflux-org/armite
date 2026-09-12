@@ -45,7 +45,10 @@ func main() {
 	checker := rbac.NewChecker(defs, store)
 
 	login := entra.New(cfg, signingKey)
-	arm := gateway.New(cfg, &signingKey.PublicKey, time.Now, checker)
+
+	registry := gateway.NewRegistry()
+	// Providers register here; M3d-3 adds Microsoft.Resources.
+	arm := gateway.New(cfg, &signingKey.PublicKey, time.Now, checker, registry)
 	server := &http.Server{
 		Addr:    cfg.ListenerAddr,
 		Handler: router.New(cfg, login, arm),
