@@ -31,6 +31,16 @@ func TestSeed(t *testing.T) {
 		}
 	}
 
+	seeded, err := store.List(sub, true)
+	if err != nil || len(seeded) != 2 {
+		t.Fatalf("List after Seed = %d assignments, %v; want 2", len(seeded), err)
+	}
+	for _, a := range seeded {
+		if a.Name == "" || a.ID == "" || a.PrincipalType != "ServicePrincipal" || a.CreatedOn.IsZero() {
+			t.Errorf("seeded assignment lacks ARM fields: %+v", a)
+		}
+	}
+
 	bad := []RoleAssignment{
 		{PrincipalID: "p3", RoleDefinitionID: "not-a-role", Scope: sub},
 	}
