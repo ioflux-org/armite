@@ -14,10 +14,11 @@ import (
 // the resource manager is - which is why it cannot sit behind
 // authentication: nobody holds a token yet.
 type endpointsDocument struct {
-	Name            string            `json:"name"`
-	Authentication  authentication    `json:"authentication"`
-	ResourceManager string            `json:"resourceManager"`
-	Suffixes        map[string]string `json:"suffixes"`
+	Name                     string            `json:"name"`
+	Authentication           authentication    `json:"authentication"`
+	ResourceManager          string            `json:"resourceManager"`
+	MicrosoftGraphResourceID string            `json:"microsoftGraphResourceId"`
+	Suffixes                 map[string]string `json:"suffixes"`
 }
 
 type authentication struct {
@@ -41,7 +42,12 @@ func endpointsFor(cfg config.Config) endpointsDocument {
 			IdentityProvider: "AAD",
 		},
 		ResourceManager: cfg.ARMBaseURL() + "/",
-		Suffixes:        map[string]string{},
+		// az builds a Graph client before listing role assignments and
+		// refuses to run without this endpoint. Pointing it at the ARM
+		// host makes the principal-name lookup fail with an HTTP error,
+		// which az tolerates; a connection failure it would not.
+		MicrosoftGraphResourceID: cfg.ARMBaseURL() + "/",
+		Suffixes:                 map[string]string{},
 	}
 }
 

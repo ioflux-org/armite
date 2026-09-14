@@ -10,6 +10,7 @@ import (
 	"github.com/ioflux-org/provisio/internal/entra"
 	"github.com/ioflux-org/provisio/internal/gateway"
 	"github.com/ioflux-org/provisio/internal/pki"
+	"github.com/ioflux-org/provisio/internal/provider/authorization"
 	"github.com/ioflux-org/provisio/internal/provider/resources"
 	"github.com/ioflux-org/provisio/internal/rbac"
 	"github.com/ioflux-org/provisio/internal/router"
@@ -50,6 +51,7 @@ func main() {
 
 	registry := gateway.NewRegistry()
 	registry.Register("Microsoft.Resources", resources.New(cfg, store.New()))
+	registry.Register("Microsoft.Authorization", authorization.New(cfg, defs, assignments, time.Now))
 
 	arm := gateway.New(cfg, &signingKey.PublicKey, time.Now, checker, registry)
 	server := &http.Server{

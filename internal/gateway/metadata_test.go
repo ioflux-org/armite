@@ -32,6 +32,7 @@ func TestEndpointsDocuments(t *testing.T) {
 			Tenant        string   `json:"tenant"`
 		} `json:"authentication"`
 		ResourceManager string `json:"resourceManager"`
+		Graph           string `json:"microsoftGraphResourceId"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &doc); err != nil {
 		t.Fatalf("body is not JSON: %v", err)
@@ -48,6 +49,9 @@ func TestEndpointsDocuments(t *testing.T) {
 	}
 	if doc.ResourceManager != "https://management.localhost:8443/" {
 		t.Errorf("resourceManager = %q", doc.ResourceManager)
+	}
+	if doc.Graph != doc.ResourceManager {
+		t.Errorf("microsoftGraphResourceId = %q, want the ARM host %q", doc.Graph, doc.ResourceManager)
 	}
 	if !strings.Contains(rec.Body.String(), `"suffixes":{}`) {
 		t.Errorf("suffixes must be present even when empty: %s", rec.Body.String())

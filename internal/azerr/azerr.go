@@ -25,6 +25,13 @@ const (
 	CodeInvalidResourceGroupName           = "InvalidResourceGroupName"
 	CodeInvalidRequestContent              = "InvalidRequestContent"
 	CodeSubscriptionNotFound               = "SubscriptionNotFound"
+	CodeInvalidResourceType                = "InvalidResourceType"
+	CodeInvalidFilter                      = "InvalidFilter"
+	CodeRoleDefinitionDoesNotExist         = "RoleDefinitionDoesNotExist"
+	CodeRoleAssignmentNotFound             = "RoleAssignmentNotFound"
+	CodeRoleAssignmentExists               = "RoleAssignmentExists"
+	CodeRoleAssignmentUpdateNotPermitted   = "RoleAssignmentUpdateNotPermitted"
+	CodePrincipalNotFound                  = "PrincipalNotFound"
 )
 
 type ErrorInfo struct {
