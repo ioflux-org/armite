@@ -31,8 +31,9 @@ func TestEndpointsDocuments(t *testing.T) {
 			Audiences     []string `json:"audiences"`
 			Tenant        string   `json:"tenant"`
 		} `json:"authentication"`
-		ResourceManager string `json:"resourceManager"`
-		Graph           string `json:"microsoftGraphResourceId"`
+		ResourceManager string            `json:"resourceManager"`
+		Graph           string            `json:"microsoftGraphResourceId"`
+		Suffixes        map[string]string `json:"suffixes"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &doc); err != nil {
 		t.Fatalf("body is not JSON: %v", err)
@@ -53,8 +54,8 @@ func TestEndpointsDocuments(t *testing.T) {
 	if doc.Graph != doc.ResourceManager {
 		t.Errorf("microsoftGraphResourceId = %q, want the ARM host %q", doc.Graph, doc.ResourceManager)
 	}
-	if !strings.Contains(rec.Body.String(), `"suffixes":{}`) {
-		t.Errorf("suffixes must be present even when empty: %s", rec.Body.String())
+	if doc.Suffixes["keyVaultDns"] != "vault.localhost:8443" {
+		t.Errorf("suffixes.keyVaultDns = %q, want vault.localhost:8443", doc.Suffixes["keyVaultDns"])
 	}
 
 	rec = get("/metadata/endpoints?api-version=2019-05-01")

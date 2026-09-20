@@ -33,6 +33,7 @@ func TestDeriveAction(t *testing.T) {
 	}{
 		{"read resource group", http.MethodGet, rg, "Microsoft.Resources/subscriptions/resourceGroups/read", rg, nil},
 		{"list groups: same action, parent scope", http.MethodGet, "/subscriptions/sub-1/resourceGroups", "Microsoft.Resources/subscriptions/resourceGroups/read", "/subscriptions/sub-1", nil},
+		{"list resources: read at the subscription", http.MethodGet, "/subscriptions/sub-1/resources", "Microsoft.Resources/subscriptions/resources/read", "/subscriptions/sub-1", nil},
 		{"create resource group", http.MethodPut, rg, "Microsoft.Resources/subscriptions/resourceGroups/write", rg, nil},
 		{"delete resource group", http.MethodDelete, rg, "Microsoft.Resources/subscriptions/resourceGroups/delete", rg, nil},
 		{"head is read", http.MethodHead, rg, "Microsoft.Resources/subscriptions/resourceGroups/read", rg, nil},

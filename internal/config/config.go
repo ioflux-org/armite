@@ -1,6 +1,8 @@
 package config
 
-import "net"
+import (
+	"net"
+)
 
 // Built-in role definition GUIDs are globally fixed across Azure: the same
 // values appear in every tenant's `az role definition list` and in the
@@ -44,6 +46,7 @@ type Config struct {
 	ListenerAddr         string           `yaml:"listener_addr"`
 	ARMHost              string           `yaml:"arm_host"`
 	LoginHost            string           `yaml:"login_host"`
+	VaultHost            string           `yaml:"vault_host"`
 	ARMAudience          string           `yaml:"arm_audience"`
 	Clients              []Client         `yaml:"clients"`
 	IMDSAddr             string           `yaml:"imds_addr"`
@@ -61,6 +64,7 @@ func Default() Config {
 		ListenerAddr:         "127.0.0.1:8443",
 		ARMHost:              "management.localhost",
 		LoginHost:            "login.localhost",
+		VaultHost:            "vault.localhost",
 		ARMAudience:          "https://management.azure.com",
 		Clients: []Client{{
 			ID:       "33333333-3333-3333-3333-333333333333",
@@ -115,4 +119,22 @@ func (c Config) FindClient(id string) (Client, bool) {
 		}
 	}
 	return Client{}, false
+}
+
+// VaultDNSSuffix is what a client appends to a vault name to reach its
+// data plane, published as suffixes.keyVaultDns in the endpoints
+// document. It carries the listener's port because az builds the URL by
+// concatenation and never consults vaultUri.
+func (c Config) VaultDNSSuffix() string {
+	_, port, err := net.SplitHostPort(c.ListenerAddr)
+	if err != nil {
+		return c.VaultHost
+	}
+	return c.VaultHost + ":" + port
+}
+
+// VaultURI is the data-plane origin of the named vault, as ARM reports
+// it in properties.vaultUri: one hostname per vault.
+func (c Config) VaultURI(name string) string {
+	return "https://" + name + "." + c.VaultDNSSuffix() + "/"
 }

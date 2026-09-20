@@ -32,6 +32,8 @@ const (
 	CodeRoleAssignmentExists               = "RoleAssignmentExists"
 	CodeRoleAssignmentUpdateNotPermitted   = "RoleAssignmentUpdateNotPermitted"
 	CodePrincipalNotFound                  = "PrincipalNotFound"
+	CodeVaultAlreadyExists                 = "VaultAlreadyExists"
+	CodeVaultNameNotValid                  = "VaultNameNotValid"
 )
 
 type ErrorInfo struct {

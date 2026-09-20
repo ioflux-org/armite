@@ -73,6 +73,16 @@ func TestARMBaseURL(t *testing.T) {
 	}
 }
 
+func TestVaultURI(t *testing.T) {
+	cfg := Default()
+	if got := cfg.VaultDNSSuffix(); got != "vault.localhost:8443" {
+		t.Errorf("VaultDNSSuffix = %q, want vault.localhost:8443", got)
+	}
+	if got := cfg.VaultURI("kv-demo"); got != "https://kv-demo.vault.localhost:8443/" {
+		t.Errorf("VaultURI = %q", got)
+	}
+}
+
 func TestFindClient(t *testing.T) {
 	cfg := Default()
 	if len(cfg.Clients) == 0 {

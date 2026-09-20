@@ -49,6 +49,8 @@ func (p *Provider) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	case "tenants":
 		p.serveTenants(w, r, rt.ID)
+	case "subscriptions/resources", "subscriptions/resourcegroups/resources":
+		p.serveResources(w, r, rt.ID)
 	default:
 		// The parser's native whitelist admits nothing else today; this
 		// is the fail-closed answer for a future entry without a handler.

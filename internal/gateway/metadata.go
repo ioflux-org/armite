@@ -29,9 +29,9 @@ type authentication struct {
 }
 
 // endpointsFor builds the document from config. Trailing slashes follow
-// real ARM's document; clients normalize them. Suffixes is empty until
-// a data plane exists (M4 adds keyVaultDns) but always present: az
-// indexes into it without checking.
+// real ARM's document; clients normalize them. suffixes.keyVaultDns is
+// how az reaches a vault's data plane: it appends the suffix to the
+// vault name, so the suffix carries the port.
 func endpointsFor(cfg config.Config) endpointsDocument {
 	return endpointsDocument{
 		Name: "Provisio",
@@ -47,7 +47,7 @@ func endpointsFor(cfg config.Config) endpointsDocument {
 		// host makes the principal-name lookup fail with an HTTP error,
 		// which az tolerates; a connection failure it would not.
 		MicrosoftGraphResourceID: cfg.ARMBaseURL() + "/",
-		Suffixes:                 map[string]string{},
+		Suffixes:                 map[string]string{"keyVaultDns": cfg.VaultDNSSuffix()},
 	}
 }
 

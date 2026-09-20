@@ -85,8 +85,8 @@ func ParseResourceID(path string) (ResourceID, error) {
 // itself. Keys and values are lowercase; the empty key is the path root.
 var nativeChildren = map[string][]string{
 	"":               {"subscriptions", "tenants"},
-	"subscriptions":  {"resourcegroups"},
-	"resourcegroups": {},
+	"subscriptions":  {"resourcegroups", "resources"},
+	"resourcegroups": {"resources"},
 	"tenants":        {},
 }
 
@@ -96,6 +96,7 @@ var nativeCanonical = map[string]string{
 	"subscriptions":  "subscriptions",
 	"resourcegroups": "resourceGroups",
 	"tenants":        "tenants",
+	"resources":      "resources",
 }
 
 // parseNative parses the providers-free routes: the same alternating

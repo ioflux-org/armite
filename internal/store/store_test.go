@@ -148,6 +148,8 @@ func TestList(t *testing.T) {
 		{"empty scope is root", "", rgType, allRGs},
 		{"other subscription: nothing", "/subscriptions/other", rgType, nil},
 		{"unknown type: nothing", sub, "Microsoft.Storage/storageAccounts", nil},
+		{"any type under one rg", alpha, "", []string{v1}},
+		{"any type under the sub", sub, "", []string{alpha, v1, alpha + "2", v2, sub + "/resourceGroups/beta"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -11,6 +11,7 @@ import (
 	"github.com/ioflux-org/provisio/internal/gateway"
 	"github.com/ioflux-org/provisio/internal/pki"
 	"github.com/ioflux-org/provisio/internal/provider/authorization"
+	"github.com/ioflux-org/provisio/internal/provider/keyvault"
 	"github.com/ioflux-org/provisio/internal/provider/resources"
 	"github.com/ioflux-org/provisio/internal/rbac"
 	"github.com/ioflux-org/provisio/internal/router"
@@ -50,7 +51,9 @@ func main() {
 	login := entra.New(cfg, signingKey)
 
 	registry := gateway.NewRegistry()
-	registry.Register("Microsoft.Resources", resources.New(cfg, store.New()))
+	resourceStore := store.New()
+	registry.Register("Microsoft.Resources", resources.New(cfg, resourceStore))
+	registry.Register("Microsoft.KeyVault", keyvault.New(cfg, resourceStore))
 	registry.Register("Microsoft.Authorization", authorization.New(cfg, defs, assignments, time.Now))
 
 	arm := gateway.New(cfg, &signingKey.PublicKey, time.Now, checker, registry)

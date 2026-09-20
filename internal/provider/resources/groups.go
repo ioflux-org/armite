@@ -162,14 +162,22 @@ func (p *Provider) headGroup(w http.ResponseWriter, id arm.ResourceID) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// deleteGroup answers synchronously. Real ARM returns 202 and a Location
-// header to poll; SDK and az pollers treat an immediate 200 as done.
+// deleteGroup answers synchronously and takes the group's contents with
+// it, as real ARM does. Real ARM returns 202 and a Location header to
+// poll; SDK and az pollers treat an immediate 200 as done.
 func (p *Provider) deleteGroup(w http.ResponseWriter, id arm.ResourceID) {
-	deleted, err := p.store.Delete(id.String())
+	children, err := p.store.List(id.String(), "")
 	if err != nil {
 		internalError(w, err)
 		return
 	}
+	for _, child := range children {
+		if _, err := p.store.Delete(child.ID); err != nil {
+			internalError(w, err)
+			return
+		}
+	}
+	deleted, err := p.store.Delete(id.String())
 	if !deleted {
 		groupLookupError(w, id, store.ErrNotFound)
 		return

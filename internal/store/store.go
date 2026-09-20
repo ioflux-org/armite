@@ -82,10 +82,10 @@ func (s *Store) Get(id string) (Resource, error) {
 	return r.clone(), nil
 }
 
-// List returns copies of every resource of type typ whose ID lies
-// strictly below scope, at any depth, sorted by ID. Both comparisons
-// are case-insensitive. An empty result is a non-nil empty slice so
-// it encodes as [] rather than null.
+// List returns copies of every resource whose ID lies strictly below
+// scope, at any depth, sorted by ID: those of type typ, or all of them
+// when typ is "". Both comparisons are case-insensitive. An empty result
+// is a non-nil empty slice so it encodes as [] rather than null.
 func (s *Store) List(scope, typ string) ([]Resource, error) {
 	prefix := key(scope) + "/"
 
@@ -93,7 +93,7 @@ func (s *Store) List(scope, typ string) ([]Resource, error) {
 	defer s.mu.RUnlock()
 	var keys []string
 	for k, r := range s.byID {
-		if strings.HasPrefix(k, prefix) && strings.EqualFold(r.Type, typ) {
+		if strings.HasPrefix(k, prefix) && (typ == "" || strings.EqualFold(r.Type, typ)) {
 			keys = append(keys, k)
 		}
 	}

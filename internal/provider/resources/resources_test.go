@@ -2,9 +2,11 @@ package resources
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -297,5 +299,90 @@ func TestUnroutedRequest(t *testing.T) {
 	newProvider().ServeHTTP(rec, req)
 	if rec.Code != http.StatusInternalServerError {
 		t.Errorf("status = %d, want 500 for a request that skipped RouteRequest", rec.Code)
+	}
+}
+
+// serveFilter is serve with a $filter, URL-encoded the way az sends it.
+func serveFilter(t *testing.T, p *Provider, path, filter string) *httptest.ResponseRecorder {
+	t.Helper()
+	target := path + v
+	if filter != "" {
+		target += "&" + url.Values{"$filter": {filter}}.Encode()
+	}
+	rec := httptest.NewRecorder()
+	gateway.RouteRequest(p).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, target, nil))
+	return rec
+}
+
+func TestGenericResourceListing(t *testing.T) {
+	p := newProvider()
+	rg := sub + "/resourceGroups/dev"
+	serve(t, p, http.MethodPut, rg, `{"location":"eastus"}`)
+	vault := store.Resource{ID: rg + "/providers/Microsoft.KeyVault/vaults/kv1", Name: "kv1",
+		Type: "Microsoft.KeyVault/vaults", Location: "eastus"}
+	account := store.Resource{ID: rg + "/providers/Microsoft.Storage/storageAccounts/sa1", Name: "sa1",
+		Type: "Microsoft.Storage/storageAccounts", Location: "eastus"}
+	for _, res := range []store.Resource{vault, account} {
+		if _, err := p.store.Put(res); err != nil {
+			t.Fatalf("Put: %v", err)
+		}
+	}
+
+	tests := []struct {
+		name, path, filter string
+		want               []string // names, in order
+	}{
+		{"everything, groups excluded", sub + "/resources", "", []string{"kv1", "sa1"}},
+		{"by type", sub + "/resources", "resourceType eq 'Microsoft.KeyVault/vaults'", []string{"kv1"}},
+		{"by type and name, as az keyvault show does", sub + "/resources",
+			"resourceType eq 'Microsoft.KeyVault/vaults' and name eq 'KV1'", []string{"kv1"}},
+		{"within a group", rg + "/resources", "", []string{"kv1", "sa1"}},
+		{"other group: nothing", sub + "/resourceGroups/nope/resources", "", nil},
+	}
+	for _, tt := range tests {
+		rec := serveFilter(t, p, tt.path, tt.filter)
+		if rec.Code != http.StatusOK {
+			t.Errorf("%s: status = %d %s", tt.name, rec.Code, code(rec))
+			continue
+		}
+		var list struct {
+			Value []struct {
+				Name string `json:"name"`
+			} `json:"value"`
+		}
+		if err := json.Unmarshal(rec.Body.Bytes(), &list); err != nil {
+			t.Fatalf("%s: body: %v", tt.name, err)
+		}
+		var names []string
+		for _, r := range list.Value {
+			names = append(names, r.Name)
+		}
+		if strings.Join(names, ",") != strings.Join(tt.want, ",") {
+			t.Errorf("%s: names = %v, want %v", tt.name, names, tt.want)
+		}
+	}
+	rec := serveFilter(t, p, sub+"/resources", "location eq 'eastus'")
+	if rec.Code != http.StatusBadRequest || code(rec) != azerr.CodeInvalidFilter {
+		t.Errorf("unsupported filter: status = %d code %q, want 400 InvalidFilter", rec.Code, code(rec))
+	}
+	if rec := serve(t, p, http.MethodGet, sub+"/resources/kv1", ""); rec.Code != http.StatusNotFound {
+		t.Errorf("listing member: status = %d, want 404", rec.Code)
+	}
+}
+
+func TestDeleteGroupCascades(t *testing.T) {
+	p := newProvider()
+	rg := sub + "/resourceGroups/dev"
+	serve(t, p, http.MethodPut, rg, `{"location":"eastus"}`)
+	child := store.Resource{ID: rg + "/providers/Microsoft.KeyVault/vaults/kv1", Name: "kv1",
+		Type: "Microsoft.KeyVault/vaults"}
+	if _, err := p.store.Put(child); err != nil {
+		t.Fatalf("Put: %v", err)
+	}
+	if rec := serve(t, p, http.MethodDelete, rg, ""); rec.Code != http.StatusOK {
+		t.Fatalf("delete group: status = %d, want 200", rec.Code)
+	}
+	if _, err := p.store.Get(child.ID); !errors.Is(err, store.ErrNotFound) {
+		t.Errorf("child after group delete: err = %v, want ErrNotFound", err)
 	}
 }
