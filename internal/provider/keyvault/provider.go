@@ -1,12 +1,13 @@
-// Package keyvault is the Microsoft.KeyVault provider's management
-// plane: vaults as ARM resources in the shared resource store. The data
-// plane - secrets under each vault's own hostname - is M4b.
+// Package keyvault is the Microsoft.KeyVault provider: the management
+// plane (vaults as ARM resources in the shared resource store) and the
+// data plane (secrets, served under each vault's own hostname).
 package keyvault
 
 import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/ioflux-org/provisio/internal/azerr"
 	"github.com/ioflux-org/provisio/internal/config"
@@ -16,14 +17,17 @@ import (
 
 // Provider serves the Microsoft.KeyVault namespace.
 type Provider struct {
-	cfg   config.Config
-	store *store.Store
+	cfg     config.Config
+	store   *store.Store // vaults, next to the resource groups they live in
+	secrets *secretStore // each vault's secrets
+	now     func() time.Time
 }
 
-// New returns a provider storing vaults in st, the store the resource
-// groups live in: a vault must find its group there.
+// New builds the provider over the resource store the resource
+// groups live in: a vault must find its group there. Secrets live in
+// the provider's own store.
 func New(cfg config.Config, st *store.Store) *Provider {
-	return &Provider{cfg: cfg, store: st}
+	return &Provider{cfg: cfg, store: st, secrets: newSecretStore(), now: time.Now}
 }
 
 // ServeHTTP dispatches on the type chain RouteRequest parsed.

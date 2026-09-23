@@ -239,6 +239,14 @@ func (p *Provider) putVault(w http.ResponseWriter, r *http.Request, id arm.Resou
 		internalError(w, err)
 		return
 	}
+	if created {
+		// A new vault starts empty, even if a vault of this name once
+		// held secrets and was deleted through a group cascade.
+		if err := p.secrets.DropVault(name); err != nil {
+			internalError(w, err)
+			return
+		}
+	}
 	v, err := toVault(res)
 	if err != nil {
 		internalError(w, err)
@@ -298,6 +306,10 @@ func (p *Provider) deleteVault(w http.ResponseWriter, id arm.ResourceID) {
 	}
 	if !deleted {
 		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if err := p.secrets.DropVault(id.Names[0]); err != nil {
+		internalError(w, err)
 		return
 	}
 	w.WriteHeader(http.StatusOK)
