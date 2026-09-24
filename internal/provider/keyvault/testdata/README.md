@@ -5,3 +5,5 @@ Copyright (c) Microsoft Corporation) for contract tests only.
 
 - spec/2025-05-01/openapi.json:
   specification/keyvault/resource-manager/Microsoft.KeyVault/KeyVault/stable/2025-05-01/openapi.json
+- spec/data-plane/2025-07-01/secrets.json:
+  specification/keyvault/data-plane/Secrets/stable/2025-07-01/secrets.json
