@@ -81,6 +81,9 @@ func TestVaultURI(t *testing.T) {
 	if got := cfg.VaultURI("kv-demo"); got != "https://kv-demo.vault.localhost:8443/" {
 		t.Errorf("VaultURI = %q", got)
 	}
+	if got := cfg.VaultAudience(); got != "https://vault.localhost:8443" {
+		t.Errorf("VaultAudience = %q", got)
+	}
 }
 
 func TestFindClient(t *testing.T) {

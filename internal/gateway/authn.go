@@ -118,7 +118,7 @@ func (a *Authenticator) Verify(authorization string) (Principal, Failure) {
 	}
 	if c.ObjectID == "" {
 		return Principal{}, Failure{azerr.CodeInvalidAuthenticationToken,
-			"The received access token is not valid: the clain 'oid' should be present."}
+			"The received access token is not valid: the claim 'oid' should be present."}
 	}
 	return Principal{ObjectID: c.ObjectID, AppID: c.AppID, TenantID: c.TenantID}, Failure{}
 }

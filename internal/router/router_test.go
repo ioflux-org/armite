@@ -18,7 +18,7 @@ func plane(name string) http.Handler {
 }
 
 func TestPlaneDispatch(t *testing.T) {
-	rt := New(config.Default(), plane("login"), plane("arm"))
+	rt := New(config.Default(), plane("login"), plane("arm"), plane("vault"))
 
 	tests := []struct {
 		name string
@@ -30,6 +30,9 @@ func TestPlaneDispatch(t *testing.T) {
 		{"unknown host defaults to arm", "127.0.0.1:8443", "arm"},
 		{"login host is a different plane", "login.localhost:8443", "login"},
 		{"login host without port", "login.localhost", "login"},
+		{"vault host with port", "kv-demo.vault.localhost:8443", "vault"},
+		{"vault host without port", "kv-demo.vault.localhost", "vault"},
+		{"bare vault suffix is not a vault", "vault.localhost:8443", "arm"},
 	}
 
 	for _, tc := range tests {

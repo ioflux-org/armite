@@ -138,3 +138,11 @@ func (c Config) VaultDNSSuffix() string {
 func (c Config) VaultURI(name string) string {
 	return "https://" + name + "." + c.VaultDNSSuffix() + "/"
 }
+
+// VaultAudience is the token audience the data plane demands and the
+// resource its challenge advertises. It is the vault host itself, not
+// https://vault.azure.net, because SDKs verify that the vault they are
+// calling is a subdomain of the challenge resource.
+func (c Config) VaultAudience() string {
+	return "https://" + c.VaultDNSSuffix()
+}

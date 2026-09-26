@@ -27,7 +27,8 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	hosts := []string{cfg.ARMHost, cfg.LoginHost, "localhost", "127.0.0.1", "::1"}
+	hosts := []string{cfg.ARMHost, cfg.LoginHost, "*." + cfg.VaultHost,
+		"localhost", "127.0.0.1", "::1"}
 	certFile, keyFile, err := pki.IssueLeaf(caCert, caKey, hosts, certDir)
 	if err != nil {
 		log.Fatal(err)
@@ -52,14 +53,16 @@ func main() {
 
 	registry := gateway.NewRegistry()
 	resourceStore := store.New()
+	vaults := keyvault.New(cfg, resourceStore)
 	registry.Register("Microsoft.Resources", resources.New(cfg, resourceStore))
-	registry.Register("Microsoft.KeyVault", keyvault.New(cfg, resourceStore))
+	registry.Register("Microsoft.KeyVault", vaults)
 	registry.Register("Microsoft.Authorization", authorization.New(cfg, defs, assignments, time.Now))
 
 	arm := gateway.New(cfg, &signingKey.PublicKey, time.Now, checker, registry)
+	dataPlane := vaults.DataPlane(&signingKey.PublicKey, time.Now, checker)
 	server := &http.Server{
 		Addr:    cfg.ListenerAddr,
-		Handler: router.New(cfg, login, arm),
+		Handler: router.New(cfg, login, arm, dataPlane),
 	}
 	imds := &http.Server{
 		Addr:    cfg.IMDSAddr,
