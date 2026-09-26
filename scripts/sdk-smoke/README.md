@@ -8,6 +8,7 @@ gateway over TLS - no Go test doubles involved.
 |---|---|
 | `smoke.mjs` | `ClientSecretCredential` obtains a token from `login.localhost`; prints the decoded claims and verifies the second `getToken` is served from the SDK's cache |
 | `arm-smoke.mjs` | The token is accepted by the gateway at `management.localhost`: authenticated request passes authn and reaches the ARM pipeline |
+| `keyvault-smoke.mjs` | The full RBAC demo through `@azure/keyvault-secrets`: Owner creates a vault, is refused a secret (403 `ForbiddenByRbac`), grants itself Key Vault Secrets Officer, runs the secret lifecycle incl. soft-delete pollers, revokes the grant and is refused again; exits non-zero on any mismatch |
 
 ## One-time setup
 
@@ -23,6 +24,7 @@ gateway over TLS - no Go test doubles involved.
    ```
    127.0.0.1  management.localhost
    127.0.0.1  login.localhost
+   127.0.0.1  kv-demo.vault.localhost
    ```
 
 3. **CA certificate** - the server generates `certs/ca.pem` on first run.
@@ -59,7 +61,8 @@ Alternatively, put the five variables in `scripts/sdk-smoke/.env`
 (`KEY=value`, one per line; the file is git-ignored) and run:
 
 ```bash
-node --env-file=scripts/sdk-smoke/.env scripts/sdk-smoke/arm-smoke.mjs
+NODE_EXTRA_CA_CERTS=certs/ca.pem node --env-file=scripts/sdk-smoke/.env scripts/sdk-smoke/arm-smoke.mjs
+NODE_EXTRA_CA_CERTS=certs/ca.pem node --env-file=scripts/sdk-smoke/.env scripts/sdk-smoke/keyvault-smoke.mjs
 ```
 
 ## Expected output
