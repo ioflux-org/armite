@@ -32,3 +32,8 @@ research/
 data/
 node_modules/
 .claude/
+
+# Terraform (examples/terraform): local state and downloaded providers
+.terraform/
+*.tfstate
+*.tfstate.backup
