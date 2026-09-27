@@ -71,17 +71,9 @@ NODE_EXTRA_CA_CERTS=certs/ca.pem node --env-file=scripts/sdk-smoke/.env scripts/
 `login.localhost`, `aud` = `https://management.azure.com`), the expiry
 timestamp, and `cached: true`.
 
-`arm-smoke.mjs` - currently:
-
-```
-404 ResourceNotFound
-{"error":{"code":"ResourceNotFound","message":"Provisio has no handler for '/subscriptions' yet."}}
-```
-
-The 404 is the passing grade for now: it means the SDK's token cleared
-authentication and fell through to the not-yet-implemented ARM dispatch.
-A `401` means authentication regressed. This section will change as ARM
-providers land.
+`arm-smoke.mjs` - `200` and the subscription listing, one entry for the
+built-in subscription. A `401` means authentication regressed; a `403`
+means the seeded Owner assignment is missing.
 
 ## Troubleshooting
 
