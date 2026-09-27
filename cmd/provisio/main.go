@@ -54,7 +54,7 @@ func main() {
 	registry := gateway.NewRegistry()
 	resourceStore := store.New()
 	vaults := keyvault.New(cfg, resourceStore)
-	registry.Register("Microsoft.Resources", resources.New(cfg, resourceStore))
+	registry.Register("Microsoft.Resources", resources.New(cfg, resourceStore, registry.Catalog))
 	registry.Register("Microsoft.KeyVault", vaults)
 	registry.Register("Microsoft.Authorization", authorization.New(cfg, defs, assignments, time.Now))
 

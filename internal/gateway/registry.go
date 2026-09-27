@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/ioflux-org/provisio/internal/azerr"
@@ -13,6 +14,7 @@ import (
 // interchangeable - the seam the standalone-gateway plan depends on.
 type Registry struct {
 	providers map[string]http.Handler // key: lowercase namespace
+	names     []string                // namespaces as registered, for the catalogue
 }
 
 // NewRegistry returns an empty registry. Until a provider registers,
@@ -32,6 +34,7 @@ func (reg *Registry) Register(namespace string, h http.Handler) {
 		panic("gateway: provider registered twice for " + namespace)
 	}
 	reg.providers[key] = h
+	reg.names = append(reg.names, namespace)
 }
 
 // ServeHTTP dispatches on the namespace RouteRequest parsed. Native
@@ -52,4 +55,43 @@ func (reg *Registry) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.ServeHTTP(w, r)
+}
+
+// A ResourceType is one type a provider serves, with the api-versions it
+// answers: what ARM's provider catalogue lists per namespace.
+type ResourceType struct {
+	Type        string
+	APIVersions []string
+}
+
+// Describer is implemented by providers that can list their resource
+// types, each with at least one api-version. The catalogue
+// (GET /subscriptions/{sub}/providers) is built from it; a provider
+// without it is listed with no types.
+type Describer interface {
+	ResourceTypes() []ResourceType
+}
+
+// ProviderInfo is one catalogue entry: a namespace and its types.
+type ProviderInfo struct {
+	Namespace string
+	Types     []ResourceType
+}
+
+// Catalog lists every registered namespace, sorted, with the types each
+// provider describes. Namespaces keep the casing they were registered
+// with, which is what ARM echoes.
+func (reg *Registry) Catalog() []ProviderInfo {
+	out := make([]ProviderInfo, 0, len(reg.names))
+	for _, ns := range reg.names {
+		info := ProviderInfo{Namespace: ns}
+		if d, ok := reg.providers[strings.ToLower(ns)].(Describer); ok {
+			info.Types = d.ResourceTypes()
+		}
+		out = append(out, info)
+	}
+	slices.SortFunc(out, func(a, b ProviderInfo) int {
+		return strings.Compare(a.Namespace, b.Namespace)
+	})
+	return out
 }

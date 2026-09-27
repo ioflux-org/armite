@@ -44,6 +44,15 @@ func New(
 	}
 }
 
+// ResourceTypes lists what this provider serves, for the catalogue.
+func (p *Provider) ResourceTypes() []gateway.ResourceType {
+	return []gateway.ResourceType{
+		{Type: "roleAssignments", APIVersions: []string{"2022-04-01"}},
+		{Type: "roleDefinitions",
+			APIVersions: []string{"2022-05-01-preview", "2022-04-01"}},
+	}
+}
+
 // ServeHTTP dispatches on the type chain RouteRequest parsed.
 func (p *Provider) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	rt, ok := gateway.RouteFromContext(r.Context())

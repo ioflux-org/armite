@@ -9,6 +9,13 @@ import (
 	"github.com/ioflux-org/provisio/internal/azerr"
 )
 
+type describing struct {
+	http.Handler
+	types []ResourceType
+}
+
+func (d describing) ResourceTypes() []ResourceType { return d.types }
+
 // provider is a spy handler that stamps its name on the response, the
 // same trick router_test.go plays with planes.
 func provider(name string) http.Handler {
@@ -89,4 +96,24 @@ func TestRegisterTwicePanics(t *testing.T) {
 	reg := NewRegistry()
 	reg.Register("Microsoft.Resources", provider("a"))
 	reg.Register("microsoft.resources", provider("b"))
+}
+
+func TestRegistryCatalog(t *testing.T) {
+	reg := NewRegistry()
+	reg.Register("Microsoft.Resources", provider("resources"))
+	reg.Register("Microsoft.KeyVault", describing{provider("keyvault"),
+		[]ResourceType{{Type: "vaults", APIVersions: []string{"2025-05-01"}}}})
+	reg.Register("Microsoft.Authorization", provider("authorization"))
+
+	got := reg.Catalog()
+	if len(got) != 3 || got[0].Namespace != "Microsoft.Authorization" ||
+		got[1].Namespace != "Microsoft.KeyVault" || got[2].Namespace != "Microsoft.Resources" {
+		t.Fatalf("Catalog = %+v, want three namespaces sorted", got)
+	}
+	if len(got[1].Types) != 1 || got[1].Types[0].Type != "vaults" {
+		t.Errorf("KeyVault types = %+v, want the described vaults type", got[1].Types)
+	}
+	if len(got[0].Types) != 0 {
+		t.Errorf("a provider without ResourceTypes must list no types, got %+v", got[0].Types)
+	}
 }

@@ -67,7 +67,10 @@ func ParseResourceID(path string) (ResourceID, error) {
 
 	rest := segs[last+1:]
 	if len(rest) < 2 {
-		return ResourceID{}, fmt.Errorf("%w: providers require a namespace and a type", ErrInvalidPath)
+		// /subscriptions/{sub}/providers[/{namespace}] is not a resource
+		// path but the resource-provider catalogue ARM serves itself:
+		// "providers" is a native type here, the namespace its name.
+		return parseNative(segs)
 	}
 	if !strings.Contains(rest[0], ".") {
 		return ResourceID{}, fmt.Errorf("%w: %q is not a provider namespace", ErrInvalidPath, rest[0])
@@ -84,8 +87,9 @@ func ParseResourceID(path string) (ResourceID, error) {
 // nativeChildren whitelists the providers-free type chains ARM serves
 // itself. Keys and values are lowercase; the empty key is the path root.
 var nativeChildren = map[string][]string{
-	"":               {"subscriptions", "tenants"},
-	"subscriptions":  {"resourcegroups", "resources"},
+	"":               {"subscriptions", "tenants", "providers"},
+	"subscriptions":  {"resourcegroups", "resources", "providers"},
+	"providers":      {},
 	"resourcegroups": {"resources"},
 	"tenants":        {},
 }
@@ -97,6 +101,7 @@ var nativeCanonical = map[string]string{
 	"resourcegroups": "resourceGroups",
 	"tenants":        "tenants",
 	"resources":      "resources",
+	"providers":      "providers",
 }
 
 // parseNative parses the providers-free routes: the same alternating

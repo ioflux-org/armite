@@ -23,7 +23,7 @@ const (
 
 // newProvider builds a provider on the default config and an empty store.
 func newProvider() *Provider {
-	return New(config.Default(), store.New())
+	return New(config.Default(), store.New(), func() []gateway.ProviderInfo { return nil })
 }
 
 // serve runs one request through RouteRequest and the provider: the
@@ -53,6 +53,18 @@ func decodeGroup(t *testing.T, rec *httptest.ResponseRecorder) store.Resource {
 		t.Fatalf("body is not a resource: %v\n%s", err, rec.Body.String())
 	}
 	return res
+}
+
+// catalogued builds a provider whose catalogue holds two namespaces.
+func catalogued() *Provider {
+	catalog := func() []gateway.ProviderInfo {
+		return []gateway.ProviderInfo{
+			{Namespace: "Microsoft.Authorization"},
+			{Namespace: "Microsoft.KeyVault", Types: []gateway.ResourceType{
+				{Type: "vaults", APIVersions: []string{"2025-05-01"}}}},
+		}
+	}
+	return New(config.Default(), store.New(), catalog)
 }
 
 func TestGroupLifecycle(t *testing.T) {
@@ -384,5 +396,56 @@ func TestDeleteGroupCascades(t *testing.T) {
 	}
 	if _, err := p.store.Get(child.ID); !errors.Is(err, store.ErrNotFound) {
 		t.Errorf("child after group delete: err = %v, want ErrNotFound", err)
+	}
+}
+
+func TestProvidersCatalogue(t *testing.T) {
+	p := catalogued()
+	rec := serve(t, p, http.MethodGet, sub+"/providers", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list: status = %d %s", rec.Code, rec.Body.String())
+	}
+	var list struct {
+		Value []struct {
+			ID                string `json:"id"`
+			Namespace         string `json:"namespace"`
+			RegistrationState string `json:"registrationState"`
+			ResourceTypes     []struct {
+				ResourceType string   `json:"resourceType"`
+				APIVersions  []string `json:"apiVersions"`
+			} `json:"resourceTypes"`
+		} `json:"value"`
+		NextLink *string `json:"nextLink"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &list); err != nil || len(list.Value) != 2 {
+		t.Fatalf("list = %d entries, %v: %s", len(list.Value), err, rec.Body.String())
+	}
+	kv := list.Value[1]
+	if kv.ID != sub+"/providers/Microsoft.KeyVault" || kv.RegistrationState != "Registered" ||
+		len(kv.ResourceTypes) != 1 || kv.ResourceTypes[0].ResourceType != "vaults" ||
+		kv.ResourceTypes[0].APIVersions[0] != "2025-05-01" {
+		t.Errorf("KeyVault entry = %+v", kv)
+	}
+	if !strings.Contains(rec.Body.String(), `"nextLink":null`) {
+		t.Errorf("list must carry nextLink:null: %s", rec.Body.String())
+	}
+
+	rec = serve(t, p, http.MethodGet, sub+"/providers/microsoft.keyvault", "")
+	body := rec.Body.String()
+	if rec.Code != http.StatusOK || !strings.Contains(body, `"namespace":"Microsoft.KeyVault"`) {
+		t.Errorf("get (any casing): %d %s", rec.Code, body)
+	}
+	rec = serve(t, p, http.MethodGet, "/providers/Microsoft.Authorization", "")
+	body = rec.Body.String()
+	if rec.Code != http.StatusOK || !strings.Contains(body, `"id":"/providers/Microsoft.Auth`) {
+		t.Errorf("tenant-level get: %d %s", rec.Code, body)
+	}
+	rec = serve(t, p, http.MethodGet, sub+"/providers/Microsoft.Storage", "")
+	if rec.Code != http.StatusNotFound || code(rec) != azerr.CodeInvalidResourceNamespace {
+		t.Errorf("unknown namespace: %d %q, want 404 InvalidResourceNamespace", rec.Code, code(rec))
+	}
+	rec = serve(t, p, http.MethodPost, sub+"/providers/Microsoft.KeyVault", "")
+	if rec.Code != http.StatusMethodNotAllowed {
+		t.Errorf("register is not modelled: status = %d, want 405", rec.Code)
 	}
 }

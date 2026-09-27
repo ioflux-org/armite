@@ -18,14 +18,15 @@ import (
 // Provider serves the Microsoft.Resources namespace: the fixed
 // subscription and tenant from config, resource groups from the store.
 type Provider struct {
-	cfg   config.Config
-	store *store.Store
+	cfg     config.Config
+	store   *store.Store
+	catalog func() []gateway.ProviderInfo // the registry's namespaces and types
 }
 
 // New returns a provider describing cfg's subscription and tenant,
-// storing groups in st.
-func New(cfg config.Config, st *store.Store) *Provider {
-	return &Provider{cfg: cfg, store: st}
+// storing groups in st and listing the providers catalog returns.
+func New(cfg config.Config, st *store.Store, catalog func() []gateway.ProviderInfo) *Provider {
+	return &Provider{cfg: cfg, store: st, catalog: catalog}
 }
 
 // ServeHTTP dispatches on the type chain RouteRequest parsed. Native
@@ -51,6 +52,8 @@ func (p *Provider) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		p.serveTenants(w, r, rt.ID)
 	case "subscriptions/resources", "subscriptions/resourcegroups/resources":
 		p.serveResources(w, r, rt.ID)
+	case "subscriptions/providers", "providers":
+		p.serveProviders(w, r, rt.ID)
 	default:
 		// The parser's native whitelist admits nothing else today; this
 		// is the fail-closed answer for a future entry without a handler.
@@ -65,4 +68,15 @@ func internalError(w http.ResponseWriter, err error) {
 	log.Printf("resources: %v", err)
 	azerr.WriteError(w, http.StatusInternalServerError, azerr.CodeInternalServerError,
 		"An internal error occurred in the Microsoft.Resources provider.")
+}
+
+// ResourceTypes lists what this provider serves, for the catalogue.
+func (p *Provider) ResourceTypes() []gateway.ResourceType {
+	return []gateway.ResourceType{
+		{Type: "subscriptions", APIVersions: []string{"2022-12-01"}},
+		{Type: "tenants", APIVersions: []string{"2022-12-01"}},
+		{Type: "resourceGroups", APIVersions: []string{"2024-11-01"}},
+		{Type: "resources", APIVersions: []string{"2024-11-01"}},
+		{Type: "providers", APIVersions: []string{"2022-09-01"}},
+	}
 }

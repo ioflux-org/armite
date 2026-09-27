@@ -40,11 +40,15 @@ func TestParseResourceID(t *testing.T) {
 		{"root path", "/", ResourceID{}, ErrInvalidPath},
 		{"relative path", "subscriptions/sub-1", ResourceID{}, ErrInvalidPath},
 		{"empty segment", "/subscriptions//dev", ResourceID{}, ErrInvalidPath},
-		{"bare providers", "/subscriptions/sub-1/providers", ResourceID{}, ErrInvalidPath},
+		{"providers catalogue", "/subscriptions/sub-1/providers",
+			native([]string{"subscriptions", "providers"}, []string{"sub-1"}), nil},
+		{"one provider", "/subscriptions/sub-1/providers/Microsoft.KeyVault",
+			native([]string{"subscriptions", "providers"}, []string{"sub-1", "Microsoft.KeyVault"}), nil},
 		{"namespace without a dot", rg + "/providers/keyvault/vaults/kv1", ResourceID{}, ErrInvalidPath},
 		{"unknown native route", "/blobs/b1", ResourceID{}, ErrInvalidPath},
 		{"excess native segments", rg + "/deployments/d1", ResourceID{}, ErrInvalidPath},
-		{"group named providers: accepted loss", "/subscriptions/sub-1/resourceGroups/providers", ResourceID{}, ErrInvalidPath},
+		{"group named providers", "/subscriptions/sub-1/resourceGroups/providers",
+			native([]string{"subscriptions", "resourceGroups"}, []string{"sub-1", "providers"}), nil},
 	}
 	for _, tc := range tests {
 		got, err := ParseResourceID(tc.path)
