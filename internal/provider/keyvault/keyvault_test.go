@@ -241,3 +241,24 @@ func TestUnknownTypeAndUnrouted(t *testing.T) {
 		t.Errorf("unrouted: status = %d, want 500", rec.Code)
 	}
 }
+
+func TestPurgeIsAFinishedOperation(t *testing.T) {
+	p := newProvider(t)
+	loc := sub + "/providers/Microsoft.KeyVault/locations/eastus"
+	rec := serve(t, p, http.MethodPost, loc+"/deletedVaults/kv1/purge", "")
+	location := rec.Header().Get("Location")
+	if rec.Code != http.StatusAccepted || rec.Header().Get("Retry-After") != "0" ||
+		!strings.HasPrefix(location, "https://management.localhost:8443"+loc+"/operationResults/") {
+		t.Fatalf("purge: status = %d Location %q, want 202 + operationResults", rec.Code, location)
+	}
+	path := strings.TrimPrefix(location, "https://management.localhost:8443")
+	path = strings.TrimSuffix(path, v)
+	rec = serve(t, p, http.MethodGet, path, "")
+	if rec.Code != http.StatusOK || rec.Body.String() != `{"status":"Succeeded"}` {
+		t.Errorf("operationResults = %d %s, want 200 Succeeded", rec.Code, rec.Body.String())
+	}
+	rec = serve(t, p, http.MethodGet, loc+"/deletedVaults/kv1/purge", "")
+	if rec.Code != http.StatusMethodNotAllowed {
+		t.Errorf("GET purge: status = %d, want 405", rec.Code)
+	}
+}

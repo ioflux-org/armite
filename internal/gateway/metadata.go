@@ -38,7 +38,7 @@ func endpointsFor(cfg config.Config) endpointsDocument {
 		Authentication: authentication{
 			LoginEndpoint:    cfg.LoginBaseURL() + "/",
 			Audiences:        []string{strings.TrimSuffix(cfg.ARMAudience, "/") + "/"},
-			Tenant:           cfg.TenantID,
+			Tenant:           "common",
 			IdentityProvider: "AAD",
 		},
 		ResourceManager: cfg.ARMBaseURL() + "/",
@@ -47,7 +47,13 @@ func endpointsFor(cfg config.Config) endpointsDocument {
 		// host makes the principal-name lookup fail with an HTTP error,
 		// which az tolerates; a connection failure it would not.
 		MicrosoftGraphResourceID: cfg.ARMBaseURL() + "/",
-		Suffixes:                 map[string]string{"keyVaultDns": cfg.VaultDNSSuffix()},
+		// Terraform builds a Storage authorizer at start-up whether or not a
+		// storage resource is in the plan, and refuses to run without this
+		// suffix; nothing is served there.
+		Suffixes: map[string]string{
+			"keyVaultDns": cfg.VaultDNSSuffix(),
+			"storage":     "storage." + cfg.VaultDNSSuffix(),
+		},
 	}
 }
 

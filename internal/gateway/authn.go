@@ -4,6 +4,7 @@ import (
 	"crypto/rsa"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -19,7 +20,7 @@ import (
 type Authenticator struct {
 	pub       *rsa.PublicKey
 	issuer    string
-	audience  string
+	audiences []string
 	challenge string
 	now       func() time.Time
 }
@@ -34,18 +35,23 @@ type Failure struct {
 // NewAuthenticator builds an Authenticator for cfg's tenant and the ARM
 // audience. now is injected so tests move the clock instead of waiting.
 func NewAuthenticator(cfg config.Config, pub *rsa.PublicKey, now func() time.Time) *Authenticator {
-	return NewAuthenticatorFor(cfg, pub, now, cfg.ARMAudience)
+	return NewAuthenticatorFor(cfg, pub, now, cfg.ARMAudience, cfg.ARMBaseURL())
 }
 
 // NewAuthenticatorFor builds an Authenticator demanding a specific
 // audience. The Key Vault data plane uses it with the vault audience;
 // everything else about a token - signature, expiry, issuer, oid - is
 // judged the same way on both planes.
-func NewAuthenticatorFor(cfg config.Config, pub *rsa.PublicKey, now func() time.Time, audience string) *Authenticator {
+func NewAuthenticatorFor(cfg config.Config, pub *rsa.PublicKey, now func() time.Time,
+	audiences ...string) *Authenticator {
+	accepted := make([]string, 0, len(audiences))
+	for _, a := range audiences {
+		accepted = append(accepted, strings.TrimSuffix(a, "/"))
+	}
 	return &Authenticator{
 		pub:       pub,
 		issuer:    cfg.IssuerURL(),
-		audience:  strings.TrimSuffix(audience, "/"),
+		audiences: accepted,
 		challenge: fmt.Sprintf("Bearer authorization_uri=%q", cfg.LoginBaseURL()+"/"+cfg.TenantID),
 		now:       now,
 	}
@@ -111,10 +117,11 @@ func (a *Authenticator) Verify(authorization string) (Principal, Failure) {
 			fmt.Sprintf("The access token is from the wrong issuer '%s'. "+
 				"It must match the tenant issuer '%s'.", c.Issuer, a.issuer)}
 	}
-	if strings.TrimSuffix(c.Audience, "/") != a.audience {
+	if !slices.Contains(a.audiences, strings.TrimSuffix(c.Audience, "/")) {
 		return Principal{}, Failure{azerr.CodeInvalidAuthenticationTokenAudience,
 			fmt.Sprintf("The access token has been obtained for wrong audience '%s'. "+
-				"It should exactly match the allowed audience '%s'.", c.Audience, a.audience)}
+				"It should exactly match the allowed audience '%s'.", c.Audience,
+				strings.Join(a.audiences, "' or '"))}
 	}
 	if c.ObjectID == "" {
 		return Principal{}, Failure{azerr.CodeInvalidAuthenticationToken,

@@ -38,8 +38,11 @@ func TestEndpointsDocuments(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &doc); err != nil {
 		t.Fatalf("body is not JSON: %v", err)
 	}
-	if doc.Name != "Provisio" || doc.Authentication.Tenant != cfg.TenantID {
+	if doc.Name != "Provisio" || doc.Authentication.Tenant != "common" {
 		t.Errorf("name/tenant = %q/%q", doc.Name, doc.Authentication.Tenant)
+	}
+	if doc.Suffixes["storage"] == "" {
+		t.Error("suffixes.storage missing: the azurerm provider refuses to start without it")
 	}
 	if doc.Authentication.LoginEndpoint != "https://login.localhost:8443/" {
 		t.Errorf("loginEndpoint = %q", doc.Authentication.LoginEndpoint)

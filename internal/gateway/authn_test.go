@@ -70,6 +70,7 @@ func TestAuthenticate(t *testing.T) {
 	graph := mintToken(t, cfg, testKey, "https://graph.microsoft.com/.default")
 	slashy := mintToken(t, cfg, testKey, "https://management.azure.com//.default")
 	wrongTenant := mintToken(t, stranger, testKey, scope)
+	ownOrigin := mintToken(t, cfg, testKey, cfg.ARMBaseURL()+"/.default")
 	now := time.Now()
 
 	tests := []struct {
@@ -90,6 +91,7 @@ func TestAuthenticate(t *testing.T) {
 		{"valid token", "Bearer " + good, now, ""},
 		{"lowercase scheme", "bearer " + good, now, ""},
 		{"az double-slash scope", "Bearer " + slashy, now, ""},
+		{"terraform: ARM's own origin as audience", "Bearer " + ownOrigin, now, ""},
 	}
 
 	for _, tc := range tests {

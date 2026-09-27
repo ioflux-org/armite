@@ -30,6 +30,15 @@ func New(cfg config.Config, st *store.Store) *Provider {
 	return &Provider{cfg: cfg, store: st, secrets: newSecretStore(), now: time.Now}
 }
 
+// ResourceTypes lists what this provider serves, for the catalogue.
+func (p *Provider) ResourceTypes() []gateway.ResourceType {
+	return []gateway.ResourceType{
+		{Type: "vaults", APIVersions: []string{"2025-05-01"}},
+		{Type: "deletedVaults", APIVersions: []string{"2025-05-01"}},
+		{Type: "locations/deletedVaults", APIVersions: []string{"2025-05-01"}},
+	}
+}
+
 // ServeHTTP dispatches on the type chain RouteRequest parsed.
 func (p *Provider) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	rt, ok := gateway.RouteFromContext(r.Context())
@@ -62,6 +71,31 @@ func (p *Provider) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "locations/deletedvaults":
 		azerr.WriteError(w, http.StatusNotFound, azerr.CodeResourceNotFound,
 			"Vault soft delete is not emulated: no deleted vault named '"+rt.ID.Names[1]+"' exists.")
+	case "locations/deletedvaults/purge":
+		// Terraform purges every vault it destroys (purge_soft_delete_on_destroy
+		// defaults to true). Nothing lingers here, so the purge is an
+		// already-finished long-running operation: 202 with a Location the
+		// SDK polls once and finds complete.
+		if r.Method != http.MethodPost {
+			azerr.WriteError(w, http.StatusMethodNotAllowed, azerr.CodeMethodNotAllowed,
+				"The method '"+r.Method+"' is not allowed on '"+chain+"'.")
+			return
+		}
+		w.Header().Set("Location", p.cfg.ARMBaseURL()+"/subscriptions/"+p.cfg.SubscriptionID+
+			"/providers/Microsoft.KeyVault/locations/"+rt.ID.Names[0]+"/operationResults/"+
+			newVersionID()+"?api-version="+rt.APIVersion)
+		w.Header().Set("Retry-After", "0")
+		w.WriteHeader(http.StatusAccepted)
+	case "locations/operationresults":
+		// Every operation Provisio ever accepted finished before it answered.
+		if r.Method != http.MethodGet {
+			azerr.WriteError(w, http.StatusMethodNotAllowed, azerr.CodeMethodNotAllowed,
+				"The method '"+r.Method+"' is not allowed on '"+chain+"'.")
+			return
+		}
+		gateway.WriteJSON(w, http.StatusOK, struct {
+			Status string `json:"status"`
+		}{"Succeeded"})
 	default:
 		azerr.WriteError(w, http.StatusNotFound, azerr.CodeInvalidResourceType,
 			"The resource type '"+chain+"' could not be found in the namespace "+
