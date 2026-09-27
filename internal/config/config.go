@@ -2,6 +2,7 @@ package config
 
 import (
 	"net"
+	"os"
 )
 
 // Built-in role definition GUIDs are globally fixed across Azure: the same
@@ -145,4 +146,34 @@ func (c Config) VaultURI(name string) string {
 // calling is a subdomain of the challenge resource.
 func (c Config) VaultAudience() string {
 	return "https://" + c.VaultDNSSuffix()
+}
+
+// FromEnv returns Default with the listen addresses overridden from the
+// environment: PROVISIO_LISTEN_ADDR (ARM, login and the vaults) and
+// PROVISIO_IMDS_ADDR. The defaults bind the loopback interface, which
+// a container's published ports cannot reach; the image sets both to
+// 0.0.0.0. Hostnames and the port clients use are unchanged.
+func FromEnv() Config {
+	cfg := Default()
+	if v := os.Getenv("PROVISIO_LISTEN_ADDR"); v != "" {
+		cfg.ListenerAddr = v
+	}
+	if v := os.Getenv("PROVISIO_IMDS_ADDR"); v != "" {
+		cfg.IMDSAddr = v
+	}
+	return cfg
+}
+
+// IMDSURL is the address clients set as AZURE_POD_IDENTITY_AUTHORITY_HOST.
+// When IMDS binds every interface (a container), that is the loopback
+// address of the port, since the client is outside.
+func (c Config) IMDSURL() string {
+	host, port, err := net.SplitHostPort(c.IMDSAddr)
+	if err != nil {
+		return "http://" + c.IMDSAddr
+	}
+	if ip := net.ParseIP(host); host == "" || (ip != nil && ip.IsUnspecified()) {
+		host = "127.0.0.1"
+	}
+	return "http://" + net.JoinHostPort(host, port)
 }

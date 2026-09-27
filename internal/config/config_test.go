@@ -147,3 +147,43 @@ func TestDefaultSeedsBootAssignments(t *testing.T) {
 		}
 	}
 }
+
+func TestFromEnv(t *testing.T) {
+	if got := FromEnv(); got.ListenerAddr != Default().ListenerAddr {
+		t.Errorf("no env: ListenerAddr = %q, want the default", got.ListenerAddr)
+	}
+	t.Setenv("PROVISIO_LISTEN_ADDR", "0.0.0.0:8443")
+	t.Setenv("PROVISIO_IMDS_ADDR", "0.0.0.0:8081")
+	got := FromEnv()
+	if got.ListenerAddr != "0.0.0.0:8443" || got.IMDSAddr != "0.0.0.0:8081" {
+		t.Errorf("FromEnv = %q / %q", got.ListenerAddr, got.IMDSAddr)
+	}
+	if got.VaultDNSSuffix() != "vault.localhost:8443" ||
+		got.ARMBaseURL() != "https://management.localhost:8443" {
+		t.Errorf("binding all interfaces must not change what clients use: %q %q",
+			got.VaultDNSSuffix(), got.ARMBaseURL())
+	}
+}
+
+func TestIMDSURL(t *testing.T) {
+	cfg := Default()
+	if got := cfg.IMDSURL(); got != "http://127.0.0.1:8081" {
+		t.Errorf("default IMDSURL = %q", got)
+	}
+	cfg.IMDSAddr = "0.0.0.0:8081"
+	if got := cfg.IMDSURL(); got != "http://127.0.0.1:8081" {
+		t.Errorf("all-interfaces IMDSURL = %q, want the loopback address", got)
+	}
+	cfg.IMDSAddr = "[::]:9081"
+	if got := cfg.IMDSURL(); got != "http://127.0.0.1:9081" {
+		t.Errorf("IPv6 any IMDSURL = %q", got)
+	}
+	cfg.IMDSAddr = "imds.internal:8081"
+	if got := cfg.IMDSURL(); got != "http://imds.internal:8081" {
+		t.Errorf("named host must be kept: IMDSURL = %q", got)
+	}
+	cfg.IMDSAddr = ":8081"
+	if got := cfg.IMDSURL(); got != "http://127.0.0.1:8081" {
+		t.Errorf("empty host means every interface: IMDSURL = %q", got)
+	}
+}

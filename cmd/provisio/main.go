@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"net/http"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -18,10 +19,14 @@ import (
 	"github.com/ioflux-org/provisio/internal/store"
 )
 
-const certDir = "certs"
-
 func main() {
-	cfg := config.Default()
+	cfg := config.FromEnv()
+	// certDir holds the CA, the leaf certificate and the signing key; in
+	// the container it is the mounted volume clients read ca.pem from.
+	certDir := os.Getenv("PROVISIO_CERT_DIR")
+	if certDir == "" {
+		certDir = "certs"
+	}
 
 	caCert, caKey, err := pki.EnsureCA(certDir)
 	if err != nil {
@@ -73,12 +78,14 @@ func main() {
 	// process. The buffer lets the second sender finish without a receiver.
 	errc := make(chan error, 2)
 	go func() {
-		log.Printf("Starting server on https://%s", cfg.ListenerAddr)
-		log.Printf("Trust the CA: curl --cacert %s https://%s/", filepath.Join(certDir, pki.CACertFile), cfg.ListenerAddr)
+		log.Printf("Serving %s (listening on %s)", cfg.ARMBaseURL(), cfg.ListenerAddr)
+		log.Printf("Trust the CA: curl --cacert %s %s/",
+			filepath.Join(certDir, pki.CACertFile), cfg.ARMBaseURL())
 		errc <- server.ListenAndServeTLS(certFile, keyFile)
 	}()
 	go func() {
-		log.Printf("Starting IMDS on http://%s (SDKs: AZURE_POD_IDENTITY_AUTHORITY_HOST=http://%s)", cfg.IMDSAddr, cfg.IMDSAddr)
+		log.Printf("Serving IMDS (listening on %s; SDKs: AZURE_POD_IDENTITY_AUTHORITY_HOST=%s)",
+			cfg.IMDSAddr, cfg.IMDSURL())
 		errc <- imds.ListenAndServe()
 	}()
 	log.Fatal(<-errc)

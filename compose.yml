@@ -1,0 +1,14 @@
+services:
+  provisio:
+    build: .
+    image: provisio:dev
+    ports:
+      - "127.0.0.1:8443:8443"
+      - "127.0.0.1:8081:8081"
+    volumes:
+      - certs:/app/certs
+
+# The CA is generated inside the volume at first boot. Read it out with:
+#   docker compose cp provisio:/app/certs/ca.pem ./ca.pem
+volumes:
+  certs:

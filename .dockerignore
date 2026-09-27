@@ -1,0 +1,11 @@
+.git
+.claude
+certs
+progress
+research
+node_modules
+examples/terraform/.terraform
+*.tfstate
+*.tfstate.backup
+provisio-*-check
+/provisio
