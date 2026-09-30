@@ -34,8 +34,8 @@ type Client struct {
 // ClientID is what callers may pass as client_id - but it has no secret: the
 // platform (here, the IMDS listener) is the credential.
 type ManagedIdentity struct {
-	ClientID string `json:"client_id"`
-	ObjectID string `json:"object_id"`
+	ClientID string `yaml:"client_id"`
+	ObjectID string `yaml:"object_id"`
 }
 
 type Config struct {
@@ -155,13 +155,17 @@ func (c Config) VaultAudience() string {
 // 0.0.0.0. Hostnames and the port clients use are unchanged.
 func FromEnv() Config {
 	cfg := Default()
+	applyEnv(&cfg)
+	return cfg
+}
+
+func applyEnv(cfg *Config) {
 	if v := os.Getenv("PROVISIO_LISTEN_ADDR"); v != "" {
 		cfg.ListenerAddr = v
 	}
 	if v := os.Getenv("PROVISIO_IMDS_ADDR"); v != "" {
 		cfg.IMDSAddr = v
 	}
-	return cfg
 }
 
 // IMDSURL is the address clients set as AZURE_POD_IDENTITY_AUTHORITY_HOST.

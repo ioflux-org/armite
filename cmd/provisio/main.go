@@ -1,6 +1,8 @@
 package main
 
 import (
+	"cmp"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -19,8 +21,31 @@ import (
 	"github.com/ioflux-org/provisio/internal/store"
 )
 
+// configPath is PROVISIO_CONFIG, else ./provisio.yaml when it exists,
+// else "" (defaults only): zero files to run, one file to tweak.
+func configPath() string {
+	if p := os.Getenv("PROVISIO_CONFIG"); p != "" {
+		return p
+	}
+	if _, err := os.Stat("provisio.yaml"); err == nil {
+		return "provisio.yaml"
+	}
+	return ""
+}
+
 func main() {
-	cfg := config.FromEnv()
+	path := configPath()
+	cfg, err := config.Load(path)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if len(os.Args) > 1 {
+		runCommand(cfg, path, os.Args[1:])
+		return
+	}
+	if path != "" {
+		log.Printf("Loaded configuration from %s", path)
+	}
 	// certDir holds the CA, the leaf certificate and the signing key; in
 	// the container it is the mounted volume clients read ca.pem from.
 	certDir := os.Getenv("PROVISIO_CERT_DIR")
@@ -89,4 +114,50 @@ func main() {
 		errc <- imds.ListenAndServe()
 	}()
 	log.Fatal(<-errc)
+}
+
+// runCommand serves the subcommands: "config init [file]" writes a
+// commented provisio.yaml of the defaults, "config show [--secrets]"
+// prints the effective configuration, "config check" only validates
+// (the Load above already did, so reaching here means it passed).
+func runCommand(cfg config.Config, path string, args []string) {
+	if args[0] == "config" && len(args) > 1 {
+		switch args[1] {
+		case "init":
+			target := "provisio.yaml"
+			if len(args) > 2 {
+				target = args[2]
+			}
+			body, err := config.Template()
+			if err != nil {
+				log.Fatal(err)
+			}
+			f, err := os.OpenFile(target, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+			if err != nil {
+				log.Fatalf("config init: %v (delete the file first to regenerate it)", err)
+			}
+			defer f.Close()
+			if _, err := f.Write(body); err != nil {
+				log.Fatal(err)
+			}
+			fmt.Printf("wrote %s\n", target)
+			return
+		case "show":
+			out := cfg.Redacted()
+			if len(args) > 2 && args[2] == "--secrets" {
+				out = cfg
+			}
+			body, err := out.YAML()
+			if err != nil {
+				log.Fatal(err)
+			}
+			os.Stdout.Write(body)
+			return
+		case "check":
+			fmt.Printf("%s: ok\n", cmp.Or(path, "defaults"))
+			return
+		}
+	}
+	fmt.Fprintf(os.Stderr, "usage: provisio [config init [file] | config show [--secrets] | config check]\n")
+	os.Exit(2)
 }

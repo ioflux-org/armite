@@ -21,7 +21,7 @@ gateway over TLS - no Go test doubles involved.
 2. **Hosts entries** - `/etc/hosts` must resolve the two virtual hosts
    (see the repo README if these are missing):
 
-   ```
+   ```text
    127.0.0.1  management.localhost
    127.0.0.1  login.localhost
    127.0.0.1  kv-demo.vault.localhost
