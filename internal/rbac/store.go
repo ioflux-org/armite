@@ -1,11 +1,14 @@
 package rbac
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
 	"strings"
 	"sync"
+
+	"github.com/ioflux-org/provisio/internal/state"
 )
 
 var (
@@ -22,18 +25,30 @@ var (
 	ErrAssignmentNotFound = errors.New("role assignment not found")
 )
 
+// storeName names this store's records in the journal.
+const storeName = "roleAssignments"
+
 // AssignmentStore holds role assignments in memory, keyed by lowercase
 // name. All state is private and every access goes through methods, so
 // the backing storage can be swapped for a real database later without
-// touching callers. Safe for concurrent use.
+// touching callers. Every change is journaled through log after it is
+// made, so it survives a restart. Safe for concurrent use.
 type AssignmentStore struct {
+	log    *state.Log // nil: memory only
 	mu     sync.RWMutex
 	byName map[string]RoleAssignment
 }
 
-// NewAssignmentStore returns an empty store.
-func NewAssignmentStore() *AssignmentStore {
-	return &AssignmentStore{byName: make(map[string]RoleAssignment)}
+// Compile-time proof that the store can be attached to a state.Log.
+var _ state.Store = (*AssignmentStore)(nil)
+
+// NewAssignmentStore returns an empty store that journals through log,
+// registered with it under the store's name; a nil log keeps the store
+// in memory only.
+func NewAssignmentStore(log *state.Log) *AssignmentStore {
+	s := &AssignmentStore{log: log, byName: make(map[string]RoleAssignment)}
+	log.Attach(storeName, s)
+	return s
 }
 
 // Add stores a new assignment, canonicalizing it first: principal and
@@ -66,7 +81,11 @@ func (s *AssignmentStore) Add(a RoleAssignment) error {
 		}
 	}
 	s.byName[a.Name] = a
-	return nil
+	value, err := json.Marshal(a)
+	if err != nil {
+		return err
+	}
+	return s.log.Append(state.Record{Store: storeName, Key: a.Name, Value: value})
 }
 
 // Get returns the assignment with the given name, compared
@@ -93,7 +112,41 @@ func (s *AssignmentStore) Delete(name string) (RoleAssignment, error) {
 		return RoleAssignment{}, ErrAssignmentNotFound
 	}
 	delete(s.byName, key)
-	return a, nil
+	return a, s.log.Append(state.Record{Store: storeName, Key: key, Deleted: true})
+}
+
+// Restore applies one journaled change during replay: the assignment
+// under its name, or its removal. The checks Add makes do not apply;
+// the journal records what Add already accepted.
+func (s *AssignmentStore) Restore(rec state.Record) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if rec.Deleted {
+		delete(s.byName, rec.Key)
+		return nil
+	}
+	var a RoleAssignment
+	if err := json.Unmarshal(rec.Value, &a); err != nil {
+		return err
+	}
+	s.byName[rec.Key] = a
+	return nil
+}
+
+// Dump emits every assignment for a snapshot.
+func (s *AssignmentStore) Dump(emit func(state.Record) error) error {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for name, a := range s.byName {
+		value, err := json.Marshal(a)
+		if err != nil {
+			return err
+		}
+		if err := emit(state.Record{Store: storeName, Key: name, Value: value}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // List returns the assignments that concern scope, sorted by name: those

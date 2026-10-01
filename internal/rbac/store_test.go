@@ -1,16 +1,35 @@
 package rbac
 
 import (
+	"bytes"
 	"errors"
 	"regexp"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/ioflux-org/provisio/internal/state"
 )
 
 const testPrincipal = "44444444-4444-4444-4444-444444444444"
 
+// reopen builds a store over the journal in dir and replays it, as a
+// restart does.
+func reopen(t *testing.T, dir string) (*state.Log, *AssignmentStore) {
+	t.Helper()
+	log, err := state.Open(dir, bytes.Repeat([]byte{1}, 32), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := NewAssignmentStore(log)
+	if err := log.Replay(); err != nil {
+		t.Fatal(err)
+	}
+	return log, s
+}
+
 func TestStoreAddAndQuery(t *testing.T) {
-	s := NewAssignmentStore()
+	s := NewAssignmentStore(nil)
 	err := s.Add(RoleAssignment{
 		PrincipalID:      testPrincipal,
 		RoleDefinitionID: "/providers/Microsoft.Authorization/roleDefinitions/" + ownerID,
@@ -33,7 +52,7 @@ func TestStoreAddAndQuery(t *testing.T) {
 }
 
 func TestStoreFiltering(t *testing.T) {
-	s := NewAssignmentStore()
+	s := NewAssignmentStore(nil)
 	if err := s.Add(RoleAssignment{
 		PrincipalID:      testPrincipal,
 		RoleDefinitionID: readerID,
@@ -54,7 +73,7 @@ func TestStoreFiltering(t *testing.T) {
 }
 
 func TestAddCanonicalizes(t *testing.T) {
-	s := NewAssignmentStore()
+	s := NewAssignmentStore(nil)
 	err := s.Add(RoleAssignment{
 		PrincipalID:      strings.ToUpper(testPrincipal),
 		RoleDefinitionID: "/providers/Microsoft.Authorization/roleDefinitions/" + strings.ToUpper(ownerID),
@@ -105,7 +124,7 @@ func named(name, role, scope string) RoleAssignment {
 var errAny = errors.New("any error")
 
 func TestAddRefusesDuplicates(t *testing.T) {
-	s := NewAssignmentStore()
+	s := NewAssignmentStore(nil)
 	const sub = "/subscriptions/abc"
 	first := named("Name-1", ownerID, sub)
 	if err := s.Add(first); err != nil {
@@ -138,7 +157,7 @@ func TestAddRefusesDuplicates(t *testing.T) {
 }
 
 func TestGetDeleteRevokes(t *testing.T) {
-	s := NewAssignmentStore()
+	s := NewAssignmentStore(nil)
 	const (
 		name  = "revoke-me"
 		sub   = "/subscriptions/abc"
@@ -175,7 +194,7 @@ func TestGetDeleteRevokes(t *testing.T) {
 }
 
 func TestListForScope(t *testing.T) {
-	s := NewAssignmentStore()
+	s := NewAssignmentStore(nil)
 	const (
 		sub   = "/subscriptions/abc"
 		rg    = sub + "/resourceGroups/dev"
@@ -217,5 +236,38 @@ func TestListForScope(t *testing.T) {
 		if joined := strings.Join(last, ","); joined != tt.want {
 			t.Errorf("%s: List = [%s], want [%s]", tt.name, joined, tt.want)
 		}
+	}
+}
+
+func TestAssignmentsSurviveReplay(t *testing.T) {
+	dir := t.TempDir()
+	log, s := reopen(t, dir)
+	created := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
+	keep := RoleAssignment{Name: "AAAA", PrincipalID: testPrincipal, RoleDefinitionID: ownerID,
+		Scope: "/subscriptions/ABC", PrincipalType: "ServicePrincipal", CreatedOn: created}
+	drop := RoleAssignment{Name: "BBBB", PrincipalID: testPrincipal, RoleDefinitionID: readerID,
+		Scope: "/subscriptions/ABC/resourceGroups/dev"}
+	for _, a := range []RoleAssignment{keep, drop} {
+		if err := s.Add(a); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := s.Delete("bbbb"); err != nil {
+		t.Fatal(err)
+	}
+	log.Close()
+
+	log, s = reopen(t, dir)
+	defer log.Close()
+	got, err := s.Get("aaaa")
+	if err != nil || got.Scope != "/subscriptions/ABC" || got.RoleDefinitionID != ownerID ||
+		!got.CreatedOn.Equal(created) || got.ID == "" {
+		t.Errorf("after replay: %+v, %v", got, err)
+	}
+	if _, err := s.Get("bbbb"); !errors.Is(err, ErrAssignmentNotFound) {
+		t.Errorf("a revoked assignment must stay revoked after replay: %v", err)
+	}
+	if err := s.Add(keep); !errors.Is(err, ErrAssignmentNameTaken) {
+		t.Errorf("replayed assignments must count as taken: %v", err)
 	}
 }

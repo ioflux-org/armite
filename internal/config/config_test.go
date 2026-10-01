@@ -37,6 +37,7 @@ func TestDefaultHasNoEmptyFields(t *testing.T) {
 		"IMDAddr":                  config.IMDSAddr,
 		"ManagedIdentiy.ClientID":  config.ManagedIdentity.ClientID,
 		"ManagedIdentity.ObjectID": config.ManagedIdentity.ObjectID,
+		"State.Dir":                config.State.Dir,
 	}
 	for name, val := range fields {
 		if val == "" {

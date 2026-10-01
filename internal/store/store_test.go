@@ -1,6 +1,7 @@
 package store
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -8,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/ioflux-org/provisio/internal/state"
 )
 
 const (
@@ -48,8 +51,23 @@ func mustPut(t *testing.T, s *Store, r Resource) bool {
 	return created
 }
 
+// reopen builds a store over the journal in dir and replays it, as a
+// restart does.
+func reopen(t *testing.T, dir string) (*state.Log, *Store) {
+	t.Helper()
+	log, err := state.Open(dir, bytes.Repeat([]byte{1}, 32), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := New(log)
+	if err := log.Replay(); err != nil {
+		t.Fatal(err)
+	}
+	return log, s
+}
+
 func TestPutGetRoundTrip(t *testing.T) {
-	s := New()
+	s := New(nil)
 	if !mustPut(t, s, rg("Dev")) {
 		t.Fatal("first Put: created = false, want true")
 	}
@@ -67,7 +85,7 @@ func TestPutGetRoundTrip(t *testing.T) {
 }
 
 func TestPutReplaces(t *testing.T) {
-	s := New()
+	s := New(nil)
 	mustPut(t, s, rg("dev"))
 
 	updated := rg("dev")
@@ -87,21 +105,21 @@ func TestPutReplaces(t *testing.T) {
 }
 
 func TestPutRejectsEmptyID(t *testing.T) {
-	s := New()
+	s := New(nil)
 	if _, err := s.Put(Resource{Name: "dev", Type: rgType}); err == nil {
 		t.Fatal("Put with empty ID: err = nil, want error")
 	}
 }
 
 func TestGetMissing(t *testing.T) {
-	s := New()
+	s := New(nil)
 	if _, err := s.Get(sub + "/resourceGroups/random"); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("Get missing: err = %v, want ErrNotFound", err)
 	}
 }
 
 func TestDeleteReportsExistence(t *testing.T) {
-	s := New()
+	s := New(nil)
 	mustPut(t, s, rg("dev"))
 
 	deleted, err := s.Delete(sub + "/RESOURCEGROUPS/dev")
@@ -118,7 +136,7 @@ func TestDeleteReportsExistence(t *testing.T) {
 }
 
 func TestList(t *testing.T) {
-	s := New()
+	s := New(nil)
 	mustPut(t, s, rg("beta"))
 	mustPut(t, s, rg("alpha"))
 	mustPut(t, s, rg("alpha2"))
@@ -172,7 +190,7 @@ func TestList(t *testing.T) {
 }
 
 func TestCopiesInAndOut(t *testing.T) {
-	s := New()
+	s := New(nil)
 	in := rg("dev")
 	mustPut(t, s, in)
 
@@ -217,7 +235,7 @@ func TestCopiesInAndOut(t *testing.T) {
 // TestConcurrentAccess has no assertions of its own: run with -race, the
 // detector fails the test if two goroutines touch the map unsynchronized.
 func TestConcurrentAccess(t *testing.T) {
-	s := New()
+	s := New(nil)
 	var wg sync.WaitGroup
 	for i := range 8 {
 		wg.Go(func() {
@@ -243,4 +261,42 @@ func TestConcurrentAccess(t *testing.T) {
 		})
 	}
 	wg.Wait()
+}
+
+func TestChangesSurviveReplay(t *testing.T) {
+	dir := t.TempDir()
+	log, s := reopen(t, dir)
+	mustPut(t, s, rg("Dev"))
+	mustPut(t, s, vault("Dev", "kv1"))
+	mustPut(t, s, vault("Dev", "kv2"))
+	if _, err := s.Delete(vault("Dev", "kv1").ID); err != nil {
+		t.Fatal(err)
+	}
+	log.Close()
+
+	log, s = reopen(t, dir)
+	got, err := s.Get(sub + "/resourcegroups/dev")
+	if err != nil || got.Name != "Dev" || got.Tags["env"] != "dev" ||
+		string(got.Properties) != props {
+		t.Errorf("after replay: %+v, %v", got, err)
+	}
+	if _, err := s.Get(vault("Dev", "kv1").ID); !errors.Is(err, ErrNotFound) {
+		t.Errorf("a deleted resource must stay deleted after replay: %v", err)
+	}
+	vaults, _ := s.List(sub, kvType)
+	if len(vaults) != 1 || vaults[0].Name != "kv2" {
+		t.Errorf("after replay: vaults = %+v, want kv2 only", vaults)
+	}
+
+	// Compaction dumps the store; the snapshot must replay the same.
+	if err := log.Compact(); err != nil {
+		t.Fatal(err)
+	}
+	log.Close()
+	log, s = reopen(t, dir)
+	defer log.Close()
+	all, _ := s.List(sub, "")
+	if len(all) != 2 {
+		t.Errorf("after compaction + replay: %d resources, want 2", len(all))
+	}
 }

@@ -1,6 +1,7 @@
 package rbac
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -13,6 +14,10 @@ import (
 // callers are expected to exit on error. Seeds get the ARM fields a
 // client would have supplied: every configured principal is a service
 // principal, and boot time is their creation time.
+//
+// A seed that is already granted - replayed from the journal of an
+// earlier boot, or created by a client - is left as it is: seeds say
+// what must hold, not what to add.
 func Seed(store *AssignmentStore, defs map[string]RoleDefinition, assignments []RoleAssignment) error {
 	now := time.Now()
 	for _, a := range assignments {
@@ -26,7 +31,11 @@ func Seed(store *AssignmentStore, defs map[string]RoleDefinition, assignments []
 		if a.CreatedOn.IsZero() {
 			a.CreatedOn = now
 		}
-		if err := store.Add(a); err != nil {
+		err := store.Add(a)
+		if errors.Is(err, ErrAssignmentNameTaken) || errors.Is(err, ErrAssignmentExists) {
+			continue
+		}
+		if err != nil {
 			return fmt.Errorf("seed assignment for principal %s: %w", a.PrincipalID, err)
 		}
 	}

@@ -2,6 +2,7 @@ package config
 
 import (
 	"bytes"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -136,6 +137,15 @@ func (c Config) Validate() error {
 			fail(key+".scope", fmt.Sprintf("%q must start with /", ra.Scope))
 		}
 	}
+	if c.State.CompactAfterMB < 0 {
+		fail("state.compact_after_mb", "must be 0 (never) or a size in MB")
+	}
+	if c.State.Key != "" {
+		key, err := base64.StdEncoding.DecodeString(c.State.Key)
+		if err != nil || len(key) != 32 {
+			fail("state.key", "must be 32 bytes, base64-encoded (openssl rand -base64 32)")
+		}
+	}
 	return errors.Join(errs...)
 }
 
@@ -144,13 +154,17 @@ func (c Config) YAML() ([]byte, error) {
 	return encode(c)
 }
 
-// Redacted returns a copy with client secrets masked, for printing.
+// Redacted returns a copy with the secrets masked, for printing: the
+// client secrets and the state key.
 func (c Config) Redacted() Config {
 	out := c
 	out.Clients = make([]Client, len(c.Clients))
 	for i, cl := range c.Clients {
 		cl.Secret = "***"
 		out.Clients[i] = cl
+	}
+	if out.State.Key != "" {
+		out.State.Key = "***"
 	}
 	return out
 }
@@ -220,6 +234,12 @@ func Template() ([]byte, error) {
 			"Officer (b86a8fe4-44ce-4948-aee5-eccb2c155cd7) to use vaults without a grant.", ""},
 		{"role_assignments.0.role_definition_id", "", "Owner"},
 		{"role_assignments.1.role_definition_id", "", "Contributor"},
+		{"state", "Where resources, role assignments and secrets persist across restarts.\n" +
+			"An empty dir keeps everything in memory. The journal is folded into the\n" +
+			"snapshot past compact_after_mb (0: never). The files are encrypted with key,\n" +
+			"a base64 32-byte value (openssl rand -base64 32); leave it empty and one is\n" +
+			"generated into the certificate directory on first boot. Without the key the\n" +
+			"state directory cannot be read.", ""},
 	}
 	for _, n := range notes {
 		if err := annotate(&doc, n.path, n.head, n.line); err != nil {

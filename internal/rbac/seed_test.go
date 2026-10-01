@@ -15,7 +15,7 @@ func TestSeed(t *testing.T) {
 		sub   = "/subscriptions/sub-1"
 	)
 
-	store := NewAssignmentStore()
+	store := NewAssignmentStore(nil)
 	good := []RoleAssignment{
 		{PrincipalID: "p1", RoleDefinitionID: owner, Scope: sub},
 		{PrincipalID: "p2", RoleDefinitionID: "/providers/Microsoft.Authorization/roleDefinitions/" + owner, Scope: sub},
@@ -44,8 +44,42 @@ func TestSeed(t *testing.T) {
 	bad := []RoleAssignment{
 		{PrincipalID: "p3", RoleDefinitionID: "not-a-role", Scope: sub},
 	}
-	err = Seed(NewAssignmentStore(), defs, bad)
+	err = Seed(NewAssignmentStore(nil), defs, bad)
 	if err == nil || !strings.Contains(err.Error(), "not-a-role") {
 		t.Errorf("Seed(bad) error = %v, want an error naming the unknown role", err)
 	}
 }
+
+// On a restart the seeds already exist, replayed from the journal; Seed
+// must leave them alone rather than refuse to boot.
+func TestSeedIsIdempotent(t *testing.T) {
+	defs, err := LoadBuiltinRoles()
+	if err != nil {
+		t.Fatal(err)
+	}
+	const sub = "/subscriptions/sub-1"
+	seeds := []RoleAssignment{
+		{PrincipalID: "p1", RoleDefinitionID: ownerID, Scope: sub},
+	}
+	store := NewAssignmentStore(nil)
+	for i := range 2 {
+		if err := Seed(store, defs, seeds); err != nil {
+			t.Fatalf("Seed #%d: %v", i+1, err)
+		}
+	}
+	// The same grant under a client-chosen name counts as seeded too.
+	err = store.Add(RoleAssignment{Name: "client-chosen", PrincipalID: "p2",
+		RoleDefinitionID: ownerID, Scope: sub})
+	if err != nil {
+		t.Fatal(err)
+	}
+	again := []RoleAssignment{{PrincipalID: "p2", RoleDefinitionID: ownerID, Scope: sub}}
+	if err = Seed(store, defs, again); err != nil {
+		t.Errorf("a seed already granted under another name: %v", err)
+	}
+	all, _ := store.List(sub, true)
+	if len(all) != 2 {
+		t.Errorf("%d assignments after repeated seeding, want 2", len(all))
+	}
+}
+

@@ -9,6 +9,9 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
+// testStateKey is 32 zero bytes, base64.
+const testStateKey = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+
 func writeYAML(t *testing.T, body string) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "provisio.yaml")
@@ -60,11 +63,16 @@ managed_identity:
 }
 
 func TestLoadEnvAfterFile(t *testing.T) {
-	path := writeYAML(t, "listener_addr: 127.0.0.1:9443\n")
+	path := writeYAML(t, "listener_addr: 127.0.0.1:9443\nstate:\n  dir: /tmp/a\n")
 	t.Setenv("PROVISIO_LISTEN_ADDR", "0.0.0.0:9443")
+	t.Setenv("PROVISIO_STATE_DIR", "/tmp/b")
+	t.Setenv("PROVISIO_STATE_KEY", testStateKey)
 	got, err := Load(path)
 	if err != nil || got.ListenerAddr != "0.0.0.0:9443" {
 		t.Errorf("env must win over the file: %q, %v", got.ListenerAddr, err)
+	}
+	if got.State.Dir != "/tmp/b" || got.State.Key != testStateKey {
+		t.Errorf("state env must win over the file: %+v", got.State)
 	}
 }
 
@@ -76,19 +84,26 @@ func TestValidateNamesEveryProblem(t *testing.T) {
 	bad.Clients[0].Secret = ""
 	bad.RoleAssignments = append(bad.RoleAssignments, SeedAssignment{
 		PrincipalID: "77777777-7777-7777-7777-777777777777", RoleDefinitionID: "x", Scope: "sub"})
+	bad.State.CompactAfterMB = -1
+	bad.State.Key = "not-a-key"
 	err := bad.Validate()
 	if err == nil {
 		t.Fatal("expected errors")
 	}
 	for _, want := range []string{"tenant_id", "vault_host", "arm_host/login_host/vault_host",
 		"clients[0].secret", "role_assignments[2].principal_id", "role_assignments[2].role_definition_id",
-		"role_assignments[2].scope"} {
+		"role_assignments[2].scope", "state.compact_after_mb", "state.key"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("error must mention %s:\n%v", want, err)
 		}
 	}
 	if Default().Validate() != nil {
 		t.Errorf("the defaults must validate: %v", Default().Validate())
+	}
+	good := Default()
+	good.State = State{Dir: "", CompactAfterMB: 0, Key: testStateKey}
+	if err := good.Validate(); err != nil {
+		t.Errorf("memory only, never compact, a real key: %v", err)
 	}
 }
 
@@ -104,9 +119,15 @@ func TestRedactedAndYAMLRoundTrip(t *testing.T) {
 	if got.Clients[0].Secret != "provisio-secret" {
 		t.Error("round trip lost the secret")
 	}
-	red, _ := Default().Redacted().YAML()
-	if strings.Contains(string(red), "provisio-secret") || !strings.Contains(string(red), "***") {
-		t.Errorf("Redacted must mask secrets:\n%s", red)
+	withKey := Default()
+	withKey.State.Key = testStateKey
+	red, _ := withKey.Redacted().YAML()
+	if strings.Contains(string(red), "provisio-secret") ||
+		strings.Contains(string(red), testStateKey) || strings.Count(string(red), "***") != 2 {
+		t.Errorf("Redacted must mask the client secret and the state key:\n%s", red)
+	}
+	if red, _ = Default().Redacted().YAML(); !strings.Contains(string(red), `key: ""`) {
+		t.Errorf("an empty state key has nothing to mask:\n%s", red)
 	}
 }
 
@@ -127,7 +148,8 @@ func TestTemplateIsCommentedAndLoadable(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := string(out)
-	wants := []string{"# Provisio configuration", "# Owner", "# Contributor", "role_assignments:"}
+	wants := []string{"# Provisio configuration", "# Owner", "# Contributor", "role_assignments:",
+		"# Where resources, role assignments and secrets persist", "compact_after_mb: 8"}
 	for _, want := range wants {
 		if !strings.Contains(text, want) {
 			t.Errorf("template lacks %q:\n%s", want, text)

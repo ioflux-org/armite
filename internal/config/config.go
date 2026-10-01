@@ -38,6 +38,18 @@ type ManagedIdentity struct {
 	ObjectID string `yaml:"object_id"`
 }
 
+// State is where resources, role assignments and secrets persist across
+// restarts: a journal and a snapshot in Dir, sealed with Key. An empty
+// Dir keeps everything in memory. CompactAfterMB bounds the journal:
+// past it, the journal is folded into the snapshot; 0 never compacts.
+// Key is a base64 32-byte AES key; empty means one is generated into the
+// certificate directory on first boot, next to the CA key.
+type State struct {
+	Dir            string `yaml:"dir"`
+	CompactAfterMB int    `yaml:"compact_after_mb"`
+	Key            string `yaml:"key"`
+}
+
 type Config struct {
 	TenantID             string           `yaml:"tenant_id"`
 	SubscriptionID       string           `yaml:"subscription_id"`
@@ -53,6 +65,7 @@ type Config struct {
 	IMDSAddr             string           `yaml:"imds_addr"`
 	ManagedIdentity      ManagedIdentity  `yaml:"managed_identity"`
 	RoleAssignments      []SeedAssignment `yaml:"role_assignments"`
+	State                State            `yaml:"state"`
 }
 
 func Default() Config {
@@ -77,6 +90,7 @@ func Default() Config {
 			ClientID: "55555555-5555-5555-5555-555555555555",
 			ObjectID: "66666666-6666-6666-6666-666666666666",
 		},
+		State: State{Dir: "state", CompactAfterMB: 8},
 	}
 	sub := "/subscriptions/" + config.SubscriptionID
 	config.RoleAssignments = []SeedAssignment{
@@ -148,11 +162,12 @@ func (c Config) VaultAudience() string {
 	return "https://" + c.VaultDNSSuffix()
 }
 
-// FromEnv returns Default with the listen addresses overridden from the
-// environment: PROVISIO_LISTEN_ADDR (ARM, login and the vaults) and
-// PROVISIO_IMDS_ADDR. The defaults bind the loopback interface, which
-// a container's published ports cannot reach; the image sets both to
-// 0.0.0.0. Hostnames and the port clients use are unchanged.
+// FromEnv returns Default with the environment applied: the listen
+// addresses PROVISIO_LISTEN_ADDR (ARM, login and the vaults) and
+// PROVISIO_IMDS_ADDR - the defaults bind the loopback interface, which
+// a container's published ports cannot reach, so the image sets both to
+// 0.0.0.0 - and the state directory and key, PROVISIO_STATE_DIR and
+// PROVISIO_STATE_KEY. Hostnames and the port clients use are unchanged.
 func FromEnv() Config {
 	cfg := Default()
 	applyEnv(&cfg)
@@ -165,6 +180,12 @@ func applyEnv(cfg *Config) {
 	}
 	if v := os.Getenv("PROVISIO_IMDS_ADDR"); v != "" {
 		cfg.IMDSAddr = v
+	}
+	if v := os.Getenv("PROVISIO_STATE_DIR"); v != "" {
+		cfg.State.Dir = v
+	}
+	if v := os.Getenv("PROVISIO_STATE_KEY"); v != "" {
+		cfg.State.Key = v
 	}
 }
 

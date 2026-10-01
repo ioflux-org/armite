@@ -32,7 +32,7 @@ func newTestChecker(t *testing.T, assignments ...RoleAssignment) *Checker {
 	if err != nil {
 		t.Fatalf("LoadBuiltinRoles: %v", err)
 	}
-	store := NewAssignmentStore()
+	store := NewAssignmentStore(nil)
 	for _, a := range assignments {
 		if err := store.Add(a); err != nil {
 			t.Fatalf("Add: %v", err)
