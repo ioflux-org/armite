@@ -137,6 +137,6 @@ out of the container's `/app/certs` volume. See [docker.md](docker.md).
 | `AADSTS50049` or a TLS error against `login.microsoftonline.com`              | instance discovery not disabled                                                      |
 | `unable to get local issuer certificate`, `endpoints_resolution_error` (msal) | CA not trusted by that client; for Node the variable must be in the real environment |
 | `connection refused` on port 443                                              | a client still pointing at the real cloud, or a stale `az cloud` registration        |
-| `VaultNotFound`                                                               | the vault does not exist on this server (state is in memory: restart = empty)        |
+| `VaultNotFound`                                                               | the vault does not exist on this server (a new state directory starts empty)         |
 | `401` with `WWW-Authenticate` on a vault                                      | expected first request of the challenge flow; the SDK retries with a token           |
 | `403 ForbiddenByRbac`                                                         | working as intended: assign a data-plane role at the vault                           |

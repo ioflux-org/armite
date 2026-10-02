@@ -12,6 +12,7 @@ import (
 	"github.com/ioflux-org/provisio/internal/azerr"
 	"github.com/ioflux-org/provisio/internal/config"
 	"github.com/ioflux-org/provisio/internal/gateway"
+	"github.com/ioflux-org/provisio/internal/state"
 	"github.com/ioflux-org/provisio/internal/store"
 )
 
@@ -25,9 +26,10 @@ type Provider struct {
 
 // New builds the provider over the resource store the resource
 // groups live in: a vault must find its group there. Secrets live in
-// the provider's own store.
-func New(cfg config.Config, st *store.Store) *Provider {
-	return &Provider{cfg: cfg, store: st, secrets: newSecretStore(), now: time.Now}
+// the provider's own store, persisted through journal (nil: memory
+// only).
+func New(cfg config.Config, st *store.Store, journal *state.Log) *Provider {
+	return &Provider{cfg: cfg, store: st, secrets: newSecretStore(journal), now: time.Now}
 }
 
 // ResourceTypes lists what this provider serves, for the catalogue.

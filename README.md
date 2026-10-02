@@ -33,6 +33,7 @@ and in CI instead of in production.
 | ARM                     | Subscriptions, tenants, resource groups, generic resource listing, the resource-provider catalogue, cloud discovery (`/metadata/endpoints`)     |
 | Microsoft.Authorization | Role definitions (read), role assignments (create, read, list, delete)                                                                          |
 | Microsoft.KeyVault      | Vaults (management plane); secrets with versions, soft delete, recover and purge (data plane, one hostname per vault, challenge authentication) |
+| Persistence             | Everything created through the API survives restarts and crashes: an encrypted journal in state/, no database to run                            |
 
 Verified end to end with `az` 2.89, `@azure/identity` and
 `@azure/keyvault-secrets`, `azure-identity` for Python, Terraform 1.16
@@ -44,9 +45,7 @@ with the unmodified azurerm provider, and curl.
 go run ./cmd/provisio          # or: docker compose up -d  (see docs/docker.md)
 ```
 
-The server generates a private CA in `certs/` at first boot and serves
-`https://management.localhost:8443` (ARM), `https://login.localhost:8443`
-(Entra) and `https://{vault}.vault.localhost:8443` (Key Vault data
+The server generates a private CA in `certs/` at first boot, keeps what you create in `state/`, and serves `https://management.localhost:8443` (ARM), `https://login.localhost:8443` (Entra) and `https://{vault}.vault.localhost:8443` (Key Vault data
 plane), plus IMDS on `http://127.0.0.1:8081`. Two things every client
 needs:
 
@@ -104,8 +103,7 @@ Provisio is faithful where clients look and deliberately simple
 elsewhere. The complete list is in
 [docs/divergences.md](docs/divergences.md); the ones you will meet first:
 
-- State is in memory: a restart forgets every resource, secret and role
-  assignment (the CA and the built-in principals persist).
+- One process, one tenant, one subscription; what you create persists in `state/` across restarts, encrypted [docs/persistence.md](docs/persistence.md).
 - Clients must skip Entra instance discovery (`disableInstanceDiscovery`,
   `az config set core.instance_discovery=false`); the authority is not
   in Microsoft's instance metadata.

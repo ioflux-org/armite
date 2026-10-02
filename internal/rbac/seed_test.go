@@ -82,4 +82,3 @@ func TestSeedIsIdempotent(t *testing.T) {
 		t.Errorf("%d assignments after repeated seeding, want 2", len(all))
 	}
 }
-

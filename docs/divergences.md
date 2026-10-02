@@ -21,8 +21,9 @@ limitation_ (unverified against a live subscription), _invention_
   `AZURE_POD_IDENTITY_AUTHORITY_HOST`, not the link-local
   `169.254.169.254`. _environment_
 - **One process, fixed world.** One tenant, one subscription, two
-  principals, all in memory; a restart forgets every resource, secret and
-  assignment. _simplification_
+  principals. State persists across restarts in a local, encrypted
+  journal (see [persistence.md](persistence.md)), not in a database:
+  one server per state directory. _simplification_
 
 ## Identity
 
@@ -112,7 +113,8 @@ table` fails because the table wants principal names; use `-o json`
   HSMs, `checkNameAvailability`, private endpoints. _deferred_
 - An unknown vault hostname answers 404 `VaultNotFound`; in Azure the
   name would simply not resolve. _invention_
-- Secret values are held in process memory in plain text. _accepted
+- Secret values are held in process memory in plain text; on disk they
+  are encrypted with a key kept next to the CA key. _accepted
   limitation_
 - The vault URI carries the port (`https://kv-demo.vault.localhost:8443/`)
   because az builds it from the DNS suffix by concatenation.

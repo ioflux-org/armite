@@ -83,7 +83,11 @@ func (s *Store) Put(r Resource) (created bool, err error) {
 	defer s.mu.Unlock()
 	_, exists := s.byID[k]
 	s.byID[k] = r.clone()
-	return !exists, nil
+	value, err := json.Marshal(r)
+	if err != nil {
+		return false, err
+	}
+	return !exists, s.log.Append(state.Record{Store: storeName, Key: k, Value: value})
 }
 
 // Get returns a copy of the resource with the given ID, or ErrNotFound.
@@ -118,39 +122,6 @@ func (s *Store) List(scope, typ string) ([]Resource, error) {
 		out = append(out, s.byID[k].clone())
 	}
 	return out, nil
-}
-
-// Delete removes the resource with the given ID and reports whether it
-// existed. A missing resource is not an error here: the provider decides
-// whether that is a 204 or a 404.
-func (s *Store) Delete(id string) (deleted bool, err error) {
-	k := key(id)
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	_, deleted = s.byID[k]
-	delete(s.byID, k)
-	return deleted, nil
-}
-
-// Put creates or replaces the resource with r.ID - PUT semantics. It
-// reports whether the resource was created rather than replaced, which
-// is the difference between ARM's 201 and 200.
-func (s *Store) Put(r Resource) (created bool, err error) {
-	if r.ID == "" {
-		return false, errors.New("store: resource has no ID")
-	}
-	k := key(r.ID)
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	_, exists := s.byID[k]
-	s.byID[k] = r.clone()
-	value, err := json.Marshal(r)
-	if err != nil {
-		return false, err
-	}
-	return !exists, s.log.Append(state.Record{Store: storeName, Key: k, Value: value})
 }
 
 // Delete removes the resource with the given ID and reports whether it

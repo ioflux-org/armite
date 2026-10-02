@@ -1,9 +1,12 @@
 package keyvault
 
 import (
+	"bytes"
 	"errors"
 	"strings"
 	"testing"
+
+	"github.com/ioflux-org/provisio/internal/state"
 )
 
 func ver(version, value string) secretVersion {
@@ -11,8 +14,23 @@ func ver(version, value string) secretVersion {
 		Tags: map[string]string{"k": "v"}, Created: 100, Updated: 100}
 }
 
+// reopen builds a secret store over the journal in dir and replays it,
+// as a restart does.
+func reopen(t *testing.T, dir string) (*state.Log, *secretStore) {
+	t.Helper()
+	log, err := state.Open(dir, bytes.Repeat([]byte{1}, 32), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	st := newSecretStore(log)
+	if err := log.Replay(); err != nil {
+		t.Fatal(err)
+	}
+	return log, st
+}
+
 func TestSecretStoreLifecycle(t *testing.T) {
-	st := newSecretStore()
+	st := newSecretStore(nil)
 	s, v1, err := st.Set("KV", "Db-Pass", ver("v1", "one"))
 	if err != nil || s.Name != "Db-Pass" || v1.Version != "v1" {
 		t.Fatalf("first Set = %+v, %+v, %v", s, v1, err)
@@ -90,7 +108,7 @@ func TestSecretStoreLifecycle(t *testing.T) {
 }
 
 func TestSecretStoreCopiesOut(t *testing.T) {
-	st := newSecretStore()
+	st := newSecretStore(nil)
 	in := ver("v1", "one")
 	st.Set("kv", "s", in)
 	in.Tags["k"] = "changed"
@@ -110,7 +128,7 @@ func TestSecretStoreCopiesOut(t *testing.T) {
 }
 
 func TestSecretStoreListSortedAndVaultsIsolated(t *testing.T) {
-	st := newSecretStore()
+	st := newSecretStore(nil)
 	for _, n := range []string{"beta", "Alpha", "gamma"} {
 		st.Set("kv", n, ver("v", "x"))
 	}
@@ -129,5 +147,59 @@ func TestSecretStoreListSortedAndVaultsIsolated(t *testing.T) {
 	}
 	if other, _ := st.List("other", false); len(other) != 1 {
 		t.Error("DropVault touched another vault")
+	}
+}
+
+func TestSecretsSurviveReplay(t *testing.T) {
+	dir := t.TempDir()
+	log, st := reopen(t, dir)
+	must := func(err error) {
+		t.Helper()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	_, _, err := st.Set("KV", "Db-Pass", ver("v1", "one"))
+	must(err)
+	_, _, err = st.Set("kv", "db-pass", ver("v2", "two"))
+	must(err)
+	_, _, err = st.Update("kv", "db-pass", "v1", func(v *secretVersion) { v.Enabled = false })
+	must(err)
+	_, _, err = st.Set("kv", "gone", ver("v1", "x"))
+	must(err)
+	_, err = st.Delete("kv", "gone", 500)
+	must(err)
+	_, _, err = st.Set("kv", "purged", ver("v1", "x"))
+	must(err)
+	_, err = st.Delete("kv", "purged", 500)
+	must(err)
+	must(st.Purge("kv", "purged"))
+	_, _, err = st.Set("other", "s", ver("v1", "x"))
+	must(err)
+	must(st.DropVault("other"))
+	_, _, err = st.Set("kv", "only-set", ver("v1", "never touched again"))
+	must(err)
+	log.Close()
+
+	log, st = reopen(t, dir)
+	defer log.Close()
+	s, v, err := st.Get("kv", "DB-PASS", "")
+	if err != nil || s.Name != "Db-Pass" || len(s.Versions) != 2 || v.Value != "two" ||
+		v.Tags["k"] != "v" || s.Versions[0].Enabled {
+		t.Errorf("after replay: %+v, %+v, %v", s, v, err)
+	}
+	d, err := st.GetDeleted("kv", "gone")
+	if err != nil || d.Deleted == nil || *d.Deleted != 500 {
+		t.Errorf("soft-deleted secret after replay: %+v, %v", d, err)
+	}
+	if _, _, err := st.Get("kv", "purged", ""); !errors.Is(err, errSecretNotFound) {
+		t.Errorf("purged secret must stay purged: %v", err)
+	}
+	if got, _ := st.List("other", false); len(got) != 0 {
+		t.Errorf("dropped vault must stay empty: %+v", got)
+	}
+	_, v, err = st.Get("kv", "only-set", "")
+	if err != nil || v.Value != "never touched again" {
+		t.Errorf("a secret that was only Set must survive: %+v, %v", v, err)
 	}
 }

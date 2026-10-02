@@ -35,12 +35,12 @@ const azBody = `{"location": "eastus", "properties": {"tenantId": "` + tenant + 
 // resource group "dev".
 func newProvider(t *testing.T) *Provider {
 	t.Helper()
-	st := store.New()
+	st := store.New(nil)
 	group := store.Resource{ID: rg, Name: "dev", Type: groupType, Location: "eastus"}
 	if _, err := st.Put(group); err != nil {
 		t.Fatalf("Put group: %v", err)
 	}
-	return New(config.Default(), st)
+	return New(config.Default(), st, nil)
 }
 
 // serve runs one request through RouteRequest and the provider.

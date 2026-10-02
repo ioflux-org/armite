@@ -46,7 +46,7 @@ func mustLoadDefs() map[string]rbac.RoleDefinition {
 func newProvider(t *testing.T) *Provider {
 	t.Helper()
 	cfg := config.Default()
-	store := rbac.NewAssignmentStore()
+	store := rbac.NewAssignmentStore(nil)
 	if err := rbac.Seed(store, builtinDefs, gateway.SeedAssignments(cfg)); err != nil {
 		t.Fatalf("Seed: %v", err)
 	}

@@ -51,7 +51,7 @@ func mintIMDSToken(t *testing.T, cfg config.Config, key *rsa.PrivateKey) string 
 // newChecker seeds a fresh store with grants and wraps it in a Checker.
 func newChecker(t *testing.T, grants []rbac.RoleAssignment) *rbac.Checker {
 	t.Helper()
-	store := rbac.NewAssignmentStore()
+	store := rbac.NewAssignmentStore(nil)
 	if err := rbac.Seed(store, builtinDefs, grants); err != nil {
 		t.Fatalf("Seed: %v", err)
 	}

@@ -25,7 +25,7 @@ Three rules to know:
 - An unknown key stops the boot, with the line and the offending text.
   So does an invalid value; every problem in the file is reported at once.
 - The environment variables from the Docker image (`PROVISIO_LISTEN_ADDR`,
-  `PROVISIO_IMDS_ADDR`, `PROVISIO_CERT_DIR`) apply after the file.
+  `PROVISIO_IMDS_ADDR`, `PROVISIO_CERT_DIR`, `PROVISIO_STATE_DIR`, `PROVISIO_STATE_KEY`) apply after the file.
 
 ## Keys
 
@@ -40,6 +40,9 @@ Three rules to know:
 | `imds_addr`                                                  | `127.0.0.1:8081`                                                        | the managed identity endpoint                                                                                                                     |
 | `managed_identity`                                           | `client_id` `5555…`, `object_id` `6666…`                                | the principal IMDS issues tokens for; it has no secret                                                                                            |
 | `role_assignments[]`                                         | Owner for the client, Contributor for the identity, at the subscription | granted at boot; `principal_id` must be a client's or the identity's `object_id`; `role_definition_id` is a built-in role GUID or a full ARM path |
+| `state.dir`                                                  | `state`                                                                 | where resources, assignments and secrets persist; `""` keeps them in memory (see [persistence.md](persistence.md))                                |
+| `state.compact_after_mb`                                     | `8`                                                                     | journal size past which it is folded into the snapshot; `0` never                                                                                 |
+| `state.key`                                                  | `""` (generated into `certs/`)                                          | base64 32-byte key the state files are encrypted with (`openssl rand -base64 32`)                                                                 |
 
 Role GUIDs are Azure's fixed built-in ones:
 `az role definition list --query "[].{name:roleName,id:name}"`.

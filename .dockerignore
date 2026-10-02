@@ -1,6 +1,7 @@
 .git
 .claude
 certs
+state
 progress
 research
 node_modules

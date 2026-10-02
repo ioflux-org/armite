@@ -11,22 +11,26 @@ shell, running as a non-root user.
 
 ## Run
 
-The server generates its CA, leaf certificate and signing key in
-`/app/certs` at first boot. Mount a host directory there so you can read
-`ca.pem`, and run as your own user so the files are yours:
+The server generates its CA, leaf certificate, signing key and state
+key in `/app/certs` at first boot, and persists everything created
+through the API in `/app/state`. Mount host directories on both so you
+can read `ca.pem` and keep your resources across runs, and run as your
+own user so the files are yours:
 
 ```bash
-mkdir -p certs
+mkdir -p certs state
 docker run --rm --name provisio \
   --user "$(id -u):$(id -g)" \
   -p 127.0.0.1:8443:8443 -p 127.0.0.1:8081:8081 \
-  -v "$PWD/certs:/app/certs" \
+  -v "$PWD/certs:/app/certs" -v "$PWD/state:/app/state" \
   provisio:dev
 ```
 
 The CA is generated once and reused on every start, so trust it once.
 `8443` serves ARM, the login endpoint and every vault; `8081` is IMDS for
-managed-identity clients.
+managed-identity clients. The state files are encrypted with the key in
+`certs/`, so keep or discard the two directories together; see
+[persistence.md](persistence.md).
 
 To use a configuration file, mount it and name it:
 
@@ -34,7 +38,7 @@ To use a configuration file, mount it and name it:
 docker run --rm --name provisio \
   --user "$(id -u):$(id -g)" \
   -p 127.0.0.1:8443:8443 -p 127.0.0.1:8081:8081 \
-  -v "$PWD/certs:/app/certs" \
+  -v "$PWD/certs:/app/certs" -v "$PWD/state:/app/state" \
   -v "$PWD/provisio.yaml:/app/provisio.yaml:ro" \
   -e PROVISIO_CONFIG=/app/provisio.yaml \
   provisio:dev
@@ -46,6 +50,9 @@ docker run --rm --name provisio \
 docker compose up -d
 docker compose cp provisio:/app/certs/ca.pem ./ca.pem
 ```
+
+Both directories are named volumes; `docker compose down -v` removes
+them and starts over.
 
 ## Reaching it
 
@@ -78,6 +85,8 @@ Managed-identity clients set `AZURE_POD_IDENTITY_AUTHORITY_HOST=http://127.0.0.1
 | `PROVISIO_LISTEN_ADDR` | `127.0.0.1:8443`                     | `0.0.0.0:8443`                 |
 | `PROVISIO_IMDS_ADDR`   | `127.0.0.1:8081`                     | `0.0.0.0:8081`                 |
 | `PROVISIO_CERT_DIR`    | `certs`                              | `/app/certs`                   |
+| `PROVISIO_STATE_DIR`   | `state`                              | `/app/state`                   |
+| `PROVISIO_STATE_KEY`   | unset (generated into the cert dir)  | unset                          |
 | `PROVISIO_CONFIG`      | unset (`./provisio.yaml` if present) | unset; mount a file and set it |
 
 The image binds all interfaces because Docker's published ports cannot

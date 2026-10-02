@@ -73,7 +73,7 @@ func TestDeriveActionFeedsCheck(t *testing.T) {
 	defs := map[string]rbac.RoleDefinition{
 		"role-1": {Permissions: []rbac.Permission{{Actions: []string{"*"}}}},
 	}
-	store := rbac.NewAssignmentStore()
+	store := rbac.NewAssignmentStore(nil)
 	if err := store.Add(rbac.RoleAssignment{PrincipalID: "user-1", RoleDefinitionID: "role-1", Scope: "/subscriptions/sub-1"}); err != nil {
 		t.Fatalf("Add: %v", err)
 	}

@@ -7,8 +7,13 @@ services:
       - "127.0.0.1:8081:8081"
     volumes:
       - certs:/app/certs
+      - state:/app/state
 
-# The CA is generated inside the volume at first boot. Read it out with:
+# The CA is generated inside the certs volume at first boot. Read it out with:
 #   docker compose cp provisio:/app/certs/ca.pem ./ca.pem
+# The state volume holds everything created through the API, encrypted
+# with a key in the certs volume: remove both to start over (docker
+# compose down -v), never one.
 volumes:
   certs:
+  state:

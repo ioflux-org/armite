@@ -23,7 +23,7 @@ const (
 
 // newProvider builds a provider on the default config and an empty store.
 func newProvider() *Provider {
-	return New(config.Default(), store.New(), func() []gateway.ProviderInfo { return nil })
+	return New(config.Default(), store.New(nil), func() []gateway.ProviderInfo { return nil })
 }
 
 // serve runs one request through RouteRequest and the provider: the
@@ -64,7 +64,7 @@ func catalogued() *Provider {
 				{Type: "vaults", APIVersions: []string{"2025-05-01"}}}},
 		}
 	}
-	return New(config.Default(), store.New(), catalog)
+	return New(config.Default(), store.New(nil), catalog)
 }
 
 func TestGroupLifecycle(t *testing.T) {

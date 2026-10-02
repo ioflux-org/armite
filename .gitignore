@@ -1,5 +1,5 @@
 # Binaries
-/provisio
+/provisio*
 /bin/
 *.exe
 
@@ -17,6 +17,9 @@ go.work.sum
 *.key
 *.crt
 *.srl
+
+# Persisted state (journal, snapshot)
+state/
 
 # Editor / OS noise
 .vscode/

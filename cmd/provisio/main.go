@@ -18,6 +18,7 @@ import (
 	"github.com/ioflux-org/provisio/internal/provider/resources"
 	"github.com/ioflux-org/provisio/internal/rbac"
 	"github.com/ioflux-org/provisio/internal/router"
+	"github.com/ioflux-org/provisio/internal/state"
 	"github.com/ioflux-org/provisio/internal/store"
 )
 
@@ -69,11 +70,37 @@ func main() {
 		log.Fatal(err)
 	}
 
+	// The journal every store writes through. Its key lives next to the
+	// CA key, so the state directory alone cannot be read; a nil journal
+	// (state.dir empty) keeps everything in memory. Nothing is closed at
+	// exit: every append is already on disk, which is what lets the
+	// process be killed at any moment.
+	var journal *state.Log
+	if cfg.State.Dir != "" {
+		key, err := state.LoadKey(certDir, cfg.State.Key)
+		if err != nil {
+			log.Fatal(err)
+		}
+		journal, err = state.Open(cfg.State.Dir, key, int64(cfg.State.CompactAfterMB)<<20)
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Printf("Persisting state in %s", cfg.State.Dir)
+	}
+
 	defs, err := rbac.LoadBuiltinRoles()
 	if err != nil {
 		log.Fatal(err)
 	}
-	assignments := rbac.NewAssignmentStore()
+	// The stores attach themselves to the journal as they are built;
+	// Replay then rebuilds them, before the seeds (which may already be
+	// there, replayed) and before anything serves.
+	assignments := rbac.NewAssignmentStore(journal)
+	resourceStore := store.New(journal)
+	vaults := keyvault.New(cfg, resourceStore, journal)
+	if err := journal.Replay(); err != nil {
+		log.Fatalf("%v (to start over, delete %s)", err, cfg.State.Dir)
+	}
 	if err := rbac.Seed(assignments, defs, gateway.SeedAssignments(cfg)); err != nil {
 		log.Fatal(err)
 	}
@@ -82,8 +109,6 @@ func main() {
 	login := entra.New(cfg, signingKey)
 
 	registry := gateway.NewRegistry()
-	resourceStore := store.New()
-	vaults := keyvault.New(cfg, resourceStore)
 	registry.Register("Microsoft.Resources", resources.New(cfg, resourceStore, registry.Catalog))
 	registry.Register("Microsoft.KeyVault", vaults)
 	registry.Register("Microsoft.Authorization", authorization.New(cfg, defs, assignments, time.Now))

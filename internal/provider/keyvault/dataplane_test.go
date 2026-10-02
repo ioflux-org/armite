@@ -90,7 +90,7 @@ func accessToken(t *testing.T, rec *httptest.ResponseRecorder) string {
 // grants, so several handlers can share one provider (and its secrets).
 func dataPlaneFor(t *testing.T, p *Provider, grants ...rbac.RoleAssignment) http.Handler {
 	t.Helper()
-	as := rbac.NewAssignmentStore()
+	as := rbac.NewAssignmentStore(nil)
 	all := append(gateway.SeedAssignments(p.cfg), grants...)
 	if err := rbac.Seed(as, builtinDefs, all); err != nil {
 		t.Fatalf("Seed: %v", err)
