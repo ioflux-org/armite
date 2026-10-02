@@ -6,9 +6,11 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"time"
 
+	"github.com/ioflux-org/provisio/internal/azurite"
 	"github.com/ioflux-org/provisio/internal/config"
 	"github.com/ioflux-org/provisio/internal/entra"
 	"github.com/ioflux-org/provisio/internal/gateway"
@@ -16,6 +18,7 @@ import (
 	"github.com/ioflux-org/provisio/internal/provider/authorization"
 	"github.com/ioflux-org/provisio/internal/provider/keyvault"
 	"github.com/ioflux-org/provisio/internal/provider/resources"
+	"github.com/ioflux-org/provisio/internal/provider/storage"
 	"github.com/ioflux-org/provisio/internal/rbac"
 	"github.com/ioflux-org/provisio/internal/router"
 	"github.com/ioflux-org/provisio/internal/state"
@@ -98,8 +101,35 @@ func main() {
 	assignments := rbac.NewAssignmentStore(journal)
 	resourceStore := store.New(journal)
 	vaults := keyvault.New(cfg, resourceStore, journal)
+	// Storage accounts live in the resource store; their keys in the
+	// provider's own. In managed mode the provider runs Azurite under the
+	// state directory, started after Replay with the accounts it knows.
+	// Without an azurite-blob to run, storage is off and everything else
+	// boots as usual: zero files and zero installs to run Key Vault.
+	var accounts *storage.Provider
+	if cfg.Azurite.Mode == "managed" {
+		if _, err := exec.LookPath(cfg.Azurite.Command); err != nil {
+			log.Printf("Microsoft.Storage disabled: %s not found on PATH (npm install -g azurite), "+
+				"or point azurite.mode: byo at an Azurite you run", cfg.Azurite.Command)
+			cfg.Azurite.Mode = "off"
+		}
+	}
+	if cfg.Azurite.Mode != "off" {
+		var manager *azurite.Manager
+		if cfg.Azurite.Mode == "managed" {
+			manager = azurite.New(cfg.Azurite.Command,
+				filepath.Join(cmp.Or(cfg.State.Dir, os.TempDir()), "azurite"), cfg.Azurite.Port)
+		}
+		accounts, err = storage.New(cfg, resourceStore, journal, manager)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
 	if err := journal.Replay(); err != nil {
 		log.Fatalf("%v (to start over, delete %s)", err, cfg.State.Dir)
+	}
+	if err := accounts.Start(); err != nil {
+		log.Fatal(err)
 	}
 	if err := rbac.Seed(assignments, defs, gateway.SeedAssignments(cfg)); err != nil {
 		log.Fatal(err)
@@ -112,9 +142,11 @@ func main() {
 	registry.Register("Microsoft.Resources", resources.New(cfg, resourceStore, registry.Catalog))
 	registry.Register("Microsoft.KeyVault", vaults)
 	registry.Register("Microsoft.Authorization", authorization.New(cfg, defs, assignments, time.Now))
-	// The storage provider lands next; until then its namespace answers
-	// as a provider the subscription has not registered.
-	registry.Disable("Microsoft.Storage")
+	if accounts != nil {
+		registry.Register("Microsoft.Storage", accounts)
+	} else {
+		registry.Disable("Microsoft.Storage")
+	}
 
 	arm := gateway.New(cfg, &signingKey.PublicKey, time.Now, checker, registry)
 	dataPlane := vaults.DataPlane(&signingKey.PublicKey, time.Now, checker)
