@@ -1,8 +1,10 @@
 package config
 
 import (
+	"fmt"
 	"net"
 	"os"
+	"strings"
 )
 
 // Built-in role definition GUIDs are globally fixed across Azure: the same
@@ -13,6 +15,10 @@ const (
 	ContributorRoleID = "b24988ac-6180-42a0-ab88-20f7382dd24c"
 	ReaderRoleID      = "acdd72a7-3385-48ef-bd42-f606fba81ae7"
 )
+
+// StorageAudience is the token audience the blob data plane demands:
+// Azure's own, which every client asks for by default.
+const StorageAudience = "https://storage.azure.com"
 
 // SeedAssignment is a role assignment granted at boot - the answer to
 // "who assigns the first role". Real Azure grants the account owner at
@@ -60,12 +66,35 @@ type Config struct {
 	ARMHost              string           `yaml:"arm_host"`
 	LoginHost            string           `yaml:"login_host"`
 	VaultHost            string           `yaml:"vault_host"`
+	BlobHost             string           `yaml:"blob_host"`
 	ARMAudience          string           `yaml:"arm_audience"`
 	Clients              []Client         `yaml:"clients"`
 	IMDSAddr             string           `yaml:"imds_addr"`
 	ManagedIdentity      ManagedIdentity  `yaml:"managed_identity"`
 	RoleAssignments      []SeedAssignment `yaml:"role_assignments"`
 	State                State            `yaml:"state"`
+	Azurite              Azurite          `yaml:"azurite"`
+}
+
+// Azurite is the blob store behind the storage data plane. In managed
+// mode Provisio starts Command itself, with the accounts it has created,
+// and restarts it when an account is created or deleted; in byo mode it
+// forwards to Upstream, an Azurite the user runs, whose accounts (and
+// keys) are listed here because that Azurite was started with them. Off
+// disables the Microsoft.Storage provider.
+type Azurite struct {
+	Mode     string           `yaml:"mode"` // managed, byo or off
+	Command  string           `yaml:"command"`
+	Port     int              `yaml:"port"`
+	Upstream string           `yaml:"upstream"`
+	Accounts []StorageAccount `yaml:"accounts"`
+}
+
+// StorageAccount is an account a bring-your-own Azurite knows: the name
+// and the base64 key it was started with.
+type StorageAccount struct {
+	Name string `yaml:"name"`
+	Key  string `yaml:"key"`
 }
 
 func Default() Config {
@@ -79,6 +108,7 @@ func Default() Config {
 		ARMHost:              "management.localhost",
 		LoginHost:            "login.localhost",
 		VaultHost:            "vault.localhost",
+		BlobHost:             "blob.localhost",
 		ARMAudience:          "https://management.azure.com",
 		Clients: []Client{{
 			ID:       "33333333-3333-3333-3333-333333333333",
@@ -90,7 +120,8 @@ func Default() Config {
 			ClientID: "55555555-5555-5555-5555-555555555555",
 			ObjectID: "66666666-6666-6666-6666-666666666666",
 		},
-		State: State{Dir: "state", CompactAfterMB: 8},
+		State:   State{Dir: "state", CompactAfterMB: 8},
+		Azurite: Azurite{Mode: "managed", Command: "azurite-blob", Port: 10000},
 	}
 	sub := "/subscriptions/" + config.SubscriptionID
 	config.RoleAssignments = []SeedAssignment{
@@ -160,6 +191,47 @@ func (c Config) VaultURI(name string) string {
 // calling is a subdomain of the challenge resource.
 func (c Config) VaultAudience() string {
 	return "https://" + c.VaultDNSSuffix()
+}
+
+// StorageSuffix is what clients append to "{account}.blob." to reach a
+// storage account, published as suffixes.storage: az, the SDKs and
+// Terraform all build the URL that way, so the blob host must be
+// "blob." followed by this suffix. The listener's port is part of it,
+// as for vaults.
+func (c Config) StorageSuffix() string {
+	suffix := strings.TrimPrefix(c.BlobHost, "blob.")
+	_, port, err := net.SplitHostPort(c.ListenerAddr)
+	if err != nil {
+		return suffix
+	}
+	return suffix + ":" + port
+}
+
+// BlobURI is the data-plane origin of a storage account's blob service,
+// as ARM reports it in properties.primaryEndpoints.blob.
+func (c Config) BlobURI(account string) string {
+	return "https://" + account + ".blob." + c.StorageSuffix() + "/"
+}
+
+// QueueHost and TableHost are the queue and table services' hostname
+// suffixes, "queue." and "table." in place of "blob.". Nothing serves
+// queues or tables, but Terraform probes both endpoints when it creates
+// an account and must be told so quickly, not by a timeout.
+func (c Config) QueueHost() string {
+	return "queue." + strings.TrimPrefix(c.BlobHost, "blob.")
+}
+
+func (c Config) TableHost() string {
+	return "table." + strings.TrimPrefix(c.BlobHost, "blob.")
+}
+
+// AzuriteURL is the upstream the blob data plane forwards to: the
+// configured one in byo mode, the managed process otherwise.
+func (c Config) AzuriteURL() string {
+	if c.Azurite.Mode == "byo" {
+		return c.Azurite.Upstream
+	}
+	return fmt.Sprintf("http://127.0.0.1:%d", c.Azurite.Port)
 }
 
 // FromEnv returns Default with the environment applied: the listen

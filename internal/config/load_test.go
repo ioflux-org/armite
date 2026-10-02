@@ -86,13 +86,17 @@ func TestValidateNamesEveryProblem(t *testing.T) {
 		PrincipalID: "77777777-7777-7777-7777-777777777777", RoleDefinitionID: "x", Scope: "sub"})
 	bad.State.CompactAfterMB = -1
 	bad.State.Key = "not-a-key"
+	bad.BlobHost = "storage.localhost"
+	bad.Azurite = Azurite{Mode: "byo", Upstream: "azurite:10000",
+		Accounts: []StorageAccount{{Name: "Bad-Name", Key: "not base64!"}}}
 	err := bad.Validate()
 	if err == nil {
 		t.Fatal("expected errors")
 	}
 	for _, want := range []string{"tenant_id", "vault_host", "arm_host/login_host/vault_host",
 		"clients[0].secret", "role_assignments[2].principal_id", "role_assignments[2].role_definition_id",
-		"role_assignments[2].scope", "state.compact_after_mb", "state.key"} {
+		"role_assignments[2].scope", "state.compact_after_mb", "state.key", "blob_host",
+		"azurite.upstream", "azurite.accounts[0].name", "azurite.accounts[0].key"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("error must mention %s:\n%v", want, err)
 		}
@@ -102,8 +106,20 @@ func TestValidateNamesEveryProblem(t *testing.T) {
 	}
 	good := Default()
 	good.State = State{Dir: "", CompactAfterMB: 0, Key: testStateKey}
+	good.Azurite = Azurite{Mode: "byo", Upstream: "http://azurite:10000",
+		Accounts: []StorageAccount{{Name: "devstoreaccount1", Key: testStateKey}}}
 	if err := good.Validate(); err != nil {
-		t.Errorf("memory only, never compact, a real key: %v", err)
+		t.Errorf("memory only, never compact, a real key, a byo azurite: %v", err)
+	}
+	good.Azurite = Azurite{Mode: "nope"}
+	if err := good.Validate(); err == nil || !strings.Contains(err.Error(), "azurite.mode") {
+		t.Errorf("an unknown azurite mode must be named: %v", err)
+	}
+	same := Default()
+	same.BlobHost = "blob.localhost"
+	same.VaultHost = "blob.localhost"
+	if err := same.Validate(); err == nil || !strings.Contains(err.Error(), "four different") {
+		t.Errorf("two planes on one hostname must be refused: %v", err)
 	}
 }
 
@@ -149,7 +165,8 @@ func TestTemplateIsCommentedAndLoadable(t *testing.T) {
 	}
 	text := string(out)
 	wants := []string{"# Provisio configuration", "# Owner", "# Contributor", "role_assignments:",
-		"# Where resources, role assignments and secrets persist", "compact_after_mb: 8"}
+		"# Where resources, role assignments and secrets persist", "compact_after_mb: 8",
+		"blob_host: blob.localhost", "# The blob store behind storage accounts", "mode: managed"}
 	for _, want := range wants {
 		if !strings.Contains(text, want) {
 			t.Errorf("template lacks %q:\n%s", want, text)

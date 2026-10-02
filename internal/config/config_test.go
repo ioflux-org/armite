@@ -38,6 +38,9 @@ func TestDefaultHasNoEmptyFields(t *testing.T) {
 		"ManagedIdentiy.ClientID":  config.ManagedIdentity.ClientID,
 		"ManagedIdentity.ObjectID": config.ManagedIdentity.ObjectID,
 		"State.Dir":                config.State.Dir,
+		"BlobHost":                 config.BlobHost,
+		"Azurite.Mode":             config.Azurite.Mode,
+		"Azurite.Command":          config.Azurite.Command,
 	}
 	for name, val := range fields {
 		if val == "" {
@@ -84,6 +87,26 @@ func TestVaultURI(t *testing.T) {
 	}
 	if got := cfg.VaultAudience(); got != "https://vault.localhost:8443" {
 		t.Errorf("VaultAudience = %q", got)
+	}
+}
+
+func TestStorageHosts(t *testing.T) {
+	cfg := Default()
+	if got := cfg.StorageSuffix(); got != "localhost:8443" {
+		t.Errorf("StorageSuffix = %q, want localhost:8443", got)
+	}
+	if got := cfg.BlobURI("stdemo"); got != "https://stdemo.blob.localhost:8443/" {
+		t.Errorf("BlobURI = %q", got)
+	}
+	if cfg.QueueHost() != "queue.localhost" || cfg.TableHost() != "table.localhost" {
+		t.Errorf("QueueHost/TableHost = %q/%q", cfg.QueueHost(), cfg.TableHost())
+	}
+	if got := cfg.AzuriteURL(); got != "http://127.0.0.1:10000" {
+		t.Errorf("managed AzuriteURL = %q", got)
+	}
+	cfg.Azurite.Mode, cfg.Azurite.Upstream = "byo", "http://azurite:10000"
+	if got := cfg.AzuriteURL(); got != "http://azurite:10000" {
+		t.Errorf("byo AzuriteURL = %q", got)
 	}
 }
 

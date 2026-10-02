@@ -47,12 +47,11 @@ func endpointsFor(cfg config.Config) endpointsDocument {
 		// host makes the principal-name lookup fail with an HTTP error,
 		// which az tolerates; a connection failure it would not.
 		MicrosoftGraphResourceID: cfg.ARMBaseURL() + "/",
-		// Terraform builds a Storage authorizer at start-up whether or not a
-		// storage resource is in the plan, and refuses to run without this
-		// suffix; nothing is served there.
+		// Clients build "{account}.blob." + this suffix to reach a storage
+		// account; Terraform refuses to start without it.
 		Suffixes: map[string]string{
 			"keyVaultDns": cfg.VaultDNSSuffix(),
-			"storage":     "storage." + cfg.VaultDNSSuffix(),
+			"storage":     cfg.StorageSuffix(),
 		},
 	}
 }

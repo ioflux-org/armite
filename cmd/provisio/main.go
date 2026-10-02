@@ -58,8 +58,8 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	hosts := []string{cfg.ARMHost, cfg.LoginHost, "*." + cfg.VaultHost,
-		"localhost", "127.0.0.1", "::1"}
+	hosts := []string{cfg.ARMHost, cfg.LoginHost, "*." + cfg.VaultHost, "*." + cfg.BlobHost,
+		"*." + cfg.QueueHost(), "*." + cfg.TableHost(), "localhost", "127.0.0.1", "::1"}
 	certFile, keyFile, err := pki.IssueLeaf(caCert, caKey, hosts, certDir)
 	if err != nil {
 		log.Fatal(err)
@@ -112,12 +112,15 @@ func main() {
 	registry.Register("Microsoft.Resources", resources.New(cfg, resourceStore, registry.Catalog))
 	registry.Register("Microsoft.KeyVault", vaults)
 	registry.Register("Microsoft.Authorization", authorization.New(cfg, defs, assignments, time.Now))
+	// The storage provider lands next; until then its namespace answers
+	// as a provider the subscription has not registered.
+	registry.Disable("Microsoft.Storage")
 
 	arm := gateway.New(cfg, &signingKey.PublicKey, time.Now, checker, registry)
 	dataPlane := vaults.DataPlane(&signingKey.PublicKey, time.Now, checker)
 	server := &http.Server{
 		Addr:    cfg.ListenerAddr,
-		Handler: router.New(cfg, login, arm, dataPlane),
+		Handler: router.New(cfg, login, arm, dataPlane, nil),
 	}
 	imds := &http.Server{
 		Addr:    cfg.IMDSAddr,

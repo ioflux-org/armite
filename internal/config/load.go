@@ -23,6 +23,9 @@ var (
 var guidPattern = regexp.MustCompile(
 	`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 
+// storageNamePattern is Azure's rule for storage account names.
+var storageNamePattern = regexp.MustCompile(`^[a-z0-9]{3,24}$`)
+
 // Load builds the effective configuration: the defaults, then the YAML
 // file at path laid over them (a key that is absent keeps its default;
 // a list that is present replaces the default list), then the
@@ -86,9 +89,18 @@ func (c Config) Validate() error {
 	host("arm_host", c.ARMHost)
 	host("login_host", c.LoginHost)
 	host("vault_host", c.VaultHost)
-	if c.ARMHost == c.LoginHost || c.ARMHost == c.VaultHost || c.LoginHost == c.VaultHost {
-		fail("arm_host/login_host/vault_host",
-			"must be three different hostnames (the router dispatches on them)")
+	host("blob_host", c.BlobHost)
+	if !strings.HasPrefix(c.BlobHost, "blob.") || len(c.BlobHost) == len("blob.") {
+		fail("blob_host", fmt.Sprintf("%q must start with \"blob.\" "+
+			"(clients build {account}.blob.{suffix})", c.BlobHost))
+	}
+	hosts := map[string]bool{}
+	for _, h := range []string{c.ARMHost, c.LoginHost, c.VaultHost, c.BlobHost} {
+		hosts[h] = true
+	}
+	if len(hosts) != 4 {
+		fail("arm_host/login_host/vault_host/blob_host",
+			"must be four different hostnames (the router dispatches on them)")
 	}
 	if !strings.HasPrefix(c.ARMAudience, "https://") {
 		fail("arm_audience", fmt.Sprintf("%q must be an https:// URL", c.ARMAudience))
@@ -144,6 +156,35 @@ func (c Config) Validate() error {
 		key, err := base64.StdEncoding.DecodeString(c.State.Key)
 		if err != nil || len(key) != 32 {
 			fail("state.key", "must be 32 bytes, base64-encoded (openssl rand -base64 32)")
+		}
+	}
+	switch c.Azurite.Mode {
+	case "managed":
+		if c.Azurite.Command == "" {
+			fail("azurite.command", "must name the azurite-blob executable")
+		}
+		if c.Azurite.Port < 1 || c.Azurite.Port > 65535 {
+			fail("azurite.port", fmt.Sprintf("%d is not a port", c.Azurite.Port))
+		}
+	case "byo":
+		up := c.Azurite.Upstream
+		if !strings.HasPrefix(up, "http://") && !strings.HasPrefix(up, "https://") {
+			fail("azurite.upstream", fmt.Sprintf("%q must be the http(s) URL of your Azurite", up))
+		}
+		if len(c.Azurite.Accounts) == 0 {
+			fail("azurite.accounts", "list the accounts your Azurite was started with (AZURITE_ACCOUNTS)")
+		}
+	case "off":
+	default:
+		fail("azurite.mode", fmt.Sprintf("%q must be managed, byo or off", c.Azurite.Mode))
+	}
+	for i, a := range c.Azurite.Accounts {
+		key := fmt.Sprintf("azurite.accounts[%d]", i)
+		if !storageNamePattern.MatchString(a.Name) {
+			fail(key+".name", fmt.Sprintf("%q must be 3-24 lowercase letters and digits", a.Name))
+		}
+		if _, err := base64.StdEncoding.DecodeString(a.Key); err != nil || a.Key == "" {
+			fail(key+".key", "must be the base64 key Azurite was started with")
 		}
 	}
 	return errors.Join(errs...)
@@ -224,6 +265,7 @@ func Template() ([]byte, error) {
 		{"listener_addr", "", "ARM, login and every vault; the port is part of every URL"},
 		{"arm_host", "Bare hostnames; each must resolve to this machine (see docs/clients.md).", ""},
 		{"vault_host", "", "vaults are {name}.vault_host"},
+		{"blob_host", "", "storage accounts are {name}.blob_host; must start with blob."},
 		{"arm_audience", "", "the ARM token audience clients ask for"},
 		{"clients", "Service principals that can log in with client_credentials.", ""},
 		{"imds_addr", "", "managed identity endpoint (AZURE_POD_IDENTITY_AUTHORITY_HOST)"},
@@ -240,6 +282,11 @@ func Template() ([]byte, error) {
 			"a base64 32-byte value (openssl rand -base64 32); leave it empty and one is\n" +
 			"generated into the certificate directory on first boot. Without the key the\n" +
 			"state directory cannot be read.", ""},
+		{"azurite", "The blob store behind storage accounts. managed: Provisio starts command\n" +
+			"(azurite-blob from npm, on PATH) on port, with the accounts it creates, and\n" +
+			"keeps its data under the state directory. byo: Provisio forwards to upstream,\n" +
+			"an Azurite you run; list the accounts and keys it was started with. off: no\n" +
+			"storage accounts.", ""},
 	}
 	for _, n := range notes {
 		if err := annotate(&doc, n.path, n.head, n.line); err != nil {

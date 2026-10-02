@@ -117,3 +117,20 @@ func TestRegistryCatalog(t *testing.T) {
 		t.Errorf("a provider without ResourceTypes must list no types, got %+v", got[0].Types)
 	}
 }
+
+// A namespace Provisio implements but is not serving answers as a
+// provider the subscription has not registered: 409, not 404.
+func TestRegistryDisabledNamespace(t *testing.T) {
+	reg := NewRegistry()
+	reg.Register("Microsoft.Resources", provider("resources"))
+	reg.Disable("Microsoft.Storage")
+	rec := httptest.NewRecorder()
+	reg.ServeHTTP(rec, routed(t, http.MethodPut,
+		"/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/dev"+
+			"/providers/Microsoft.Storage/storageAccounts/st1"))
+	if rec.Code != http.StatusConflict ||
+		rec.Header().Get("x-ms-error-code") != azerr.CodeMissingSubscriptionRegistration {
+		t.Errorf("disabled namespace: status %d, code %q; want 409 MissingSubscriptionRegistration",
+			rec.Code, rec.Header().Get("x-ms-error-code"))
+	}
+}

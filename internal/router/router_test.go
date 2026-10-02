@@ -18,7 +18,7 @@ func plane(name string) http.Handler {
 }
 
 func TestPlaneDispatch(t *testing.T) {
-	rt := New(config.Default(), plane("login"), plane("arm"), plane("vault"))
+	rt := New(config.Default(), plane("login"), plane("arm"), plane("vault"), plane("blob"))
 
 	tests := []struct {
 		name string
@@ -33,6 +33,8 @@ func TestPlaneDispatch(t *testing.T) {
 		{"vault host with port", "kv-demo.vault.localhost:8443", "vault"},
 		{"vault host without port", "kv-demo.vault.localhost", "vault"},
 		{"bare vault suffix is not a vault", "vault.localhost:8443", "arm"},
+		{"blob host with port", "mystore.blob.localhost:8443", "blob"},
+		{"bare blob suffix is not an account", "blob.localhost", "arm"},
 	}
 
 	for _, tc := range tests {
@@ -42,5 +44,15 @@ func TestPlaneDispatch(t *testing.T) {
 		if got := res.Header().Get("X-Plane"); got != tc.want {
 			t.Errorf("%s: dispatched to %q, want %q", tc.name, got, tc.want)
 		}
+	}
+}
+
+func TestStorageOffFallsThroughToARM(t *testing.T) {
+	rt := New(config.Default(), plane("login"), plane("arm"), plane("vault"), nil)
+	req := httptest.NewRequest(http.MethodGet, "https://mystore.blob.localhost:8443/", nil)
+	res := httptest.NewRecorder()
+	rt.ServeHTTP(res, req)
+	if got := res.Header().Get("X-Plane"); got != "arm" {
+		t.Errorf("with no blob plane, dispatched to %q, want arm", got)
 	}
 }

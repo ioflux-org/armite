@@ -19,6 +19,7 @@ const (
 	CodeMethodNotAllowed                   = "MethodNotAllowed"
 	CodeInternalServerError                = "InternalServerError"
 	CodeInvalidResourceNamespace           = "InvalidResourceNamespace"
+	CodeMissingSubscriptionRegistration    = "MissingSubscriptionRegistration"
 	CodeResourceGroupNotFound              = "ResourceGroupNotFound"
 	CodeLocationRequired                   = "LocationRequired"
 	CodeInvalidResourceGroupLocation       = "InvalidResourceGroupLocation"

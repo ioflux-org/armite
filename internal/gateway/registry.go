@@ -15,12 +15,13 @@ import (
 type Registry struct {
 	providers map[string]http.Handler // key: lowercase namespace
 	names     []string                // namespaces as registered, for the catalogue
+	disabled  map[string]bool         // namespaces Provisio knows but does not serve
 }
 
 // NewRegistry returns an empty registry. Until a provider registers,
 // every request is answered with InvalidResourceNamespace.
 func NewRegistry() *Registry {
-	return &Registry{providers: make(map[string]http.Handler)}
+	return &Registry{providers: make(map[string]http.Handler), disabled: make(map[string]bool)}
 }
 
 // Register binds a provider namespace such as "Microsoft.Resources" to
@@ -37,6 +38,16 @@ func (reg *Registry) Register(namespace string, h http.Handler) {
 	reg.names = append(reg.names, namespace)
 }
 
+// Disable records a namespace Provisio implements but is not serving in
+// this configuration (storage without an Azurite, say). Its requests get
+// ARM's own answer for a provider the subscription has not registered,
+// MissingSubscriptionRegistration, which is how real Azure says "this
+// service exists, but not for you" - a different thing from a namespace
+// that does not exist at all.
+func (reg *Registry) Disable(namespace string) {
+	reg.disabled[strings.ToLower(namespace)] = true
+}
+
 // ServeHTTP dispatches on the namespace RouteRequest parsed. Native
 // routes (subscriptions, resource groups) carry the implicit
 // Microsoft.Resources namespace, so they reach that provider with no
@@ -50,6 +61,12 @@ func (reg *Registry) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	h, ok := reg.providers[strings.ToLower(rt.ID.Namespace)]
 	if !ok {
+		if reg.disabled[strings.ToLower(rt.ID.Namespace)] {
+			azerr.WriteError(w, http.StatusConflict, azerr.CodeMissingSubscriptionRegistration,
+				"The subscription is not registered to use namespace '"+rt.ID.Namespace+"'. "+
+					"This Provisio runs without it; see docs/storage.md.")
+			return
+		}
 		azerr.WriteError(w, http.StatusNotFound, azerr.CodeInvalidResourceNamespace,
 			"The resource namespace '"+rt.ID.Namespace+"' is invalid.")
 		return
