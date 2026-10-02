@@ -142,8 +142,10 @@ func main() {
 	registry.Register("Microsoft.Resources", resources.New(cfg, resourceStore, registry.Catalog))
 	registry.Register("Microsoft.KeyVault", vaults)
 	registry.Register("Microsoft.Authorization", authorization.New(cfg, defs, assignments, time.Now))
+	var blobPlane http.Handler
 	if accounts != nil {
 		registry.Register("Microsoft.Storage", accounts)
+		blobPlane = accounts.DataPlane(&signingKey.PublicKey, time.Now, checker)
 	} else {
 		registry.Disable("Microsoft.Storage")
 	}
@@ -152,7 +154,7 @@ func main() {
 	dataPlane := vaults.DataPlane(&signingKey.PublicKey, time.Now, checker)
 	server := &http.Server{
 		Addr:    cfg.ListenerAddr,
-		Handler: router.New(cfg, login, arm, dataPlane, nil),
+		Handler: router.New(cfg, login, arm, dataPlane, blobPlane),
 	}
 	imds := &http.Server{
 		Addr:    cfg.IMDSAddr,
