@@ -11,9 +11,9 @@ services:
 
 # The CA is generated inside the certs volume at first boot. Read it out with:
 #   docker compose cp provisio:/app/certs/ca.pem ./ca.pem
-# The state volume holds everything created through the API, encrypted
-# with a key in the certs volume: remove both to start over (docker
-# compose down -v), never one.
+# The state volume holds everything created through the API - Azurite's
+# blobs included - encrypted with a key in the certs volume (the blobs
+# are not): remove both to start over (docker compose down -v), never one.
 volumes:
   certs:
   state:
