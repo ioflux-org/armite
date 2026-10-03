@@ -108,7 +108,7 @@ func Default() Config {
 		ARMHost:              "management.localhost",
 		LoginHost:            "login.localhost",
 		VaultHost:            "vault.localhost",
-		BlobHost:             "blob.localhost",
+		BlobHost:             "blob.core.localhost",
 		ARMAudience:          "https://management.azure.com",
 		Clients: []Client{{
 			ID:       "33333333-3333-3333-3333-333333333333",

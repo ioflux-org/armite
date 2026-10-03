@@ -6,6 +6,7 @@ import (
 	"crypto/rsa"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -148,36 +149,46 @@ func (p *Provider) DataPlane(pub *rsa.PublicKey, now func() time.Time,
 					"Provisio does not recognize this blob operation and will not forward it.")
 				return
 			}
-			scope := acct.id
-			if op.container != "" {
-				scope += "/blobServices/default/containers/" + op.container
-			}
-			allowed, err := checker.Check(principal.ObjectID, op.action, scope, op.data)
-			if err == nil && !allowed && op.alt != "" {
-				allowed, err = checker.Check(principal.ObjectID, op.alt, scope, true)
-			}
-			if err != nil {
-				writeStorageError(w, http.StatusInternalServerError, "InternalError", err.Error())
+			if !p.authorize(w, checker, principal.ObjectID, op, acct) {
 				return
 			}
-			if !allowed {
-				// Azure's own first line, then what Azure never tells you.
-				writeStorageError(w, http.StatusForbidden, errPermissionMismatch,
-					fmt.Sprintf("This request is not authorized to perform this operation "+
-						"using this permission.\nOperation: %s\nAction: '%s'\nScope: '%s'\n"+
-						"Caller: oid=%s", op.name, op.action, scope, principal.ObjectID))
+			if op.action == actDelegationKey {
+				// Identity-based end to end: issued here, never forwarded.
+				p.serveDelegationKey(w, r, principal.ObjectID)
 				return
 			}
 			// Authorized: forward as the account itself. The signature
 			// covers the path, query and x-ms-* headers the proxy keeps.
-			key, ok := p.keyFor(acct.name)
-			if !ok {
-				writeStorageError(w, http.StatusInternalServerError, "InternalError",
-					"No key is known for this account.")
+			r.Header.Del("Authorization")
+			if !p.signAsAccount(w, r, acct.name) {
 				return
 			}
-			r.Header.Del("Authorization")
-			signSharedKey(r, acct.name, key)
+		case r.URL.Query().Get("sig") != "" && r.URL.Query().Get("skoid") != "":
+			// A user delegation SAS: validated here, then authorized as
+			// the principal that asked for the key, as Azure does.
+			op, ok := parseOperation(r.Method, r.URL)
+			if !ok {
+				writeStorageError(w, http.StatusBadRequest, errUnsupported,
+					"Provisio does not recognize this blob operation and will not forward it.")
+				return
+			}
+			oid, err := p.validateDelegationSAS(r, acct.name, op)
+			if err != nil {
+				var refusal errSAS
+				if errors.As(err, &refusal) {
+					writeStorageError(w, http.StatusForbidden, refusal.code, refusal.message)
+				} else {
+					writeStorageError(w, http.StatusForbidden, "AuthenticationFailed", err.Error())
+				}
+				return
+			}
+			if !p.authorize(w, checker, oid, op, acct) {
+				return
+			}
+			stripSAS(r)
+			if !p.signAsAccount(w, r, acct.name) {
+				return
+			}
 		case strings.HasPrefix(authz, "SharedKey ") || strings.HasPrefix(authz, "SharedKeyLite "):
 			if !acct.sharedKey {
 				writeStorageError(w, http.StatusForbidden, errKeyAuthNotPermitted,
@@ -185,7 +196,9 @@ func (p *Provider) DataPlane(pub *rsa.PublicKey, now func() time.Time,
 				return
 			}
 		case r.URL.Query().Get("sig") != "":
-			if !acct.sharedKey && r.URL.Query().Get("skoid") == "" {
+			// A service or account SAS, signed with the account key:
+			// Azurite validates it, as it validates Shared Key.
+			if !acct.sharedKey {
 				writeStorageError(w, http.StatusForbidden, errKeyAuthNotPermitted,
 					"Key based authentication is not permitted on this storage account.")
 				return
@@ -203,6 +216,46 @@ func (p *Provider) DataPlane(pub *rsa.PublicKey, now func() time.Time,
 		}
 		proxy.ServeHTTP(w, r.WithContext(withAccount(r.Context(), acct.name)))
 	})
+}
+
+// authorize runs the RBAC check for op on behalf of oid and writes the
+// 403 when it fails: Azure's own first line, then what Azure never tells
+// you. Reports whether the request may proceed.
+func (p *Provider) authorize(w http.ResponseWriter, checker *rbac.Checker, oid string,
+	op operation, acct accountContext) bool {
+	scope := acct.id
+	if op.container != "" {
+		scope += "/blobServices/default/containers/" + op.container
+	}
+	allowed, err := checker.Check(oid, op.action, scope, op.data)
+	if err == nil && !allowed && op.alt != "" {
+		allowed, err = checker.Check(oid, op.alt, scope, true)
+	}
+	if err != nil {
+		writeStorageError(w, http.StatusInternalServerError, "InternalError", err.Error())
+		return false
+	}
+	if !allowed {
+		writeStorageError(w, http.StatusForbidden, errPermissionMismatch,
+			fmt.Sprintf("This request is not authorized to perform this operation "+
+				"using this permission.\nOperation: %s\nAction: '%s'\nScope: '%s'\n"+
+				"Caller: oid=%s", op.name, op.action, scope, oid))
+		return false
+	}
+	return true
+}
+
+// signAsAccount puts the account's Shared Key signature on r. Reports
+// whether it could; a missing key is answered as an internal error.
+func (p *Provider) signAsAccount(w http.ResponseWriter, r *http.Request, account string) bool {
+	key, ok := p.keyFor(account)
+	if !ok {
+		writeStorageError(w, http.StatusInternalServerError, "InternalError",
+			"No key is known for this account.")
+		return false
+	}
+	signSharedKey(r, account, key)
+	return true
 }
 
 // accountKey carries the account name to the proxy's Rewrite, which

@@ -42,8 +42,8 @@ func TestEndpointsDocuments(t *testing.T) {
 		t.Errorf("name/tenant = %q/%q", doc.Name, doc.Authentication.Tenant)
 	}
 	// az, the SDKs and Terraform build "{account}.blob." + this suffix.
-	if doc.Suffixes["storage"] != "localhost:8443" {
-		t.Errorf("suffixes.storage = %q, want localhost:8443", doc.Suffixes["storage"])
+	if doc.Suffixes["storage"] != "core.localhost:8443" {
+		t.Errorf("suffixes.storage = %q, want core.localhost:8443", doc.Suffixes["storage"])
 	}
 	if doc.Authentication.LoginEndpoint != "https://login.localhost:8443/" {
 		t.Errorf("loginEndpoint = %q", doc.Authentication.LoginEndpoint)

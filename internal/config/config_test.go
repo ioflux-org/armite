@@ -92,13 +92,13 @@ func TestVaultURI(t *testing.T) {
 
 func TestStorageHosts(t *testing.T) {
 	cfg := Default()
-	if got := cfg.StorageSuffix(); got != "localhost:8443" {
-		t.Errorf("StorageSuffix = %q, want localhost:8443", got)
+	if got := cfg.StorageSuffix(); got != "core.localhost:8443" {
+		t.Errorf("StorageSuffix = %q, want core.localhost:8443", got)
 	}
-	if got := cfg.BlobURI("stdemo"); got != "https://stdemo.blob.localhost:8443/" {
+	if got := cfg.BlobURI("stdemo"); got != "https://stdemo.blob.core.localhost:8443/" {
 		t.Errorf("BlobURI = %q", got)
 	}
-	if cfg.QueueHost() != "queue.localhost" || cfg.TableHost() != "table.localhost" {
+	if cfg.QueueHost() != "queue.core.localhost" || cfg.TableHost() != "table.core.localhost" {
 		t.Errorf("QueueHost/TableHost = %q/%q", cfg.QueueHost(), cfg.TableHost())
 	}
 	if got := cfg.AzuriteURL(); got != "http://127.0.0.1:10000" {

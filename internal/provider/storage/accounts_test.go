@@ -39,7 +39,7 @@ func newProvider(t *testing.T, cfg config.Config) *Provider {
 	if _, err := st.Put(group); err != nil {
 		t.Fatalf("Put group: %v", err)
 	}
-	p, err := New(cfg, st, nil, nil)
+	p, err := New(cfg, st, nil, nil, []byte("test-seed"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +100,7 @@ func TestAccountLifecycle(t *testing.T) {
 		t.Errorf("create: defaults not applied: %s", rec.Body.String())
 	}
 	endpoints := prop(t, got, "primaryEndpoints").(map[string]any)
-	if endpoints["blob"] != "https://stdemo.blob.localhost:8443/" || endpoints["queue"] != nil {
+	if endpoints["blob"] != "https://stdemo.blob.core.localhost:8443/" || endpoints["queue"] != nil {
 		t.Errorf("create: primaryEndpoints = %v, want the blob endpoint only", endpoints)
 	}
 	if enc := prop(t, got, "encryption").(map[string]any); enc["keySource"] != "Microsoft.Storage" {

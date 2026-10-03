@@ -78,13 +78,15 @@ func main() {
 	// (state.dir empty) keeps everything in memory. Nothing is closed at
 	// exit: every append is already on disk, which is what lets the
 	// process be killed at any moment.
+	// The state key is loaded even when nothing persists: it is also the
+	// secret storage user delegation keys are derived from.
+	stateKey, err := state.LoadKey(certDir, cfg.State.Key)
+	if err != nil {
+		log.Fatal(err)
+	}
 	var journal *state.Log
 	if cfg.State.Dir != "" {
-		key, err := state.LoadKey(certDir, cfg.State.Key)
-		if err != nil {
-			log.Fatal(err)
-		}
-		journal, err = state.Open(cfg.State.Dir, key, int64(cfg.State.CompactAfterMB)<<20)
+		journal, err = state.Open(cfg.State.Dir, stateKey, int64(cfg.State.CompactAfterMB)<<20)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -120,7 +122,7 @@ func main() {
 			manager = azurite.New(cfg.Azurite.Command,
 				filepath.Join(cmp.Or(cfg.State.Dir, os.TempDir()), "azurite"), cfg.Azurite.Port)
 		}
-		accounts, err = storage.New(cfg, resourceStore, journal, manager)
+		accounts, err = storage.New(cfg, resourceStore, journal, manager, stateKey)
 		if err != nil {
 			log.Fatal(err)
 		}

@@ -166,7 +166,7 @@ func TestTemplateIsCommentedAndLoadable(t *testing.T) {
 	text := string(out)
 	wants := []string{"# Provisio configuration", "# Owner", "# Contributor", "role_assignments:",
 		"# Where resources, role assignments and secrets persist", "compact_after_mb: 8",
-		"blob_host: blob.localhost", "# The blob store behind storage accounts", "mode: managed"}
+		"blob_host: blob.core.localhost", "# The blob store behind storage accounts", "mode: managed"}
 	for _, want := range wants {
 		if !strings.Contains(text, want) {
 			t.Errorf("template lacks %q:\n%s", want, text)

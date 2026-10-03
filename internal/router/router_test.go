@@ -33,8 +33,9 @@ func TestPlaneDispatch(t *testing.T) {
 		{"vault host with port", "kv-demo.vault.localhost:8443", "vault"},
 		{"vault host without port", "kv-demo.vault.localhost", "vault"},
 		{"bare vault suffix is not a vault", "vault.localhost:8443", "arm"},
-		{"blob host with port", "mystore.blob.localhost:8443", "blob"},
-		{"bare blob suffix is not an account", "blob.localhost", "arm"},
+		{"blob host with port", "mystore.blob.core.localhost:8443", "blob"},
+		{"queue host goes to the blob plane too", "mystore.queue.core.localhost", "blob"},
+		{"bare blob suffix is not an account", "blob.core.localhost", "arm"},
 	}
 
 	for _, tc := range tests {
@@ -49,7 +50,7 @@ func TestPlaneDispatch(t *testing.T) {
 
 func TestStorageOffFallsThroughToARM(t *testing.T) {
 	rt := New(config.Default(), plane("login"), plane("arm"), plane("vault"), nil)
-	req := httptest.NewRequest(http.MethodGet, "https://mystore.blob.localhost:8443/", nil)
+	req := httptest.NewRequest(http.MethodGet, "https://mystore.blob.core.localhost:8443/", nil)
 	res := httptest.NewRecorder()
 	rt.ServeHTTP(res, req)
 	if got := res.Header().Get("X-Plane"); got != "arm" {

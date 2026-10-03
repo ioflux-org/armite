@@ -26,14 +26,18 @@ type Provider struct {
 	azurite  *azurite.Manager  // managed mode; nil in byo mode
 	upstream *upstream
 	now      func() time.Time
+
+	delegationSeed []byte // the secret user delegation keys derive from
 }
 
 // New builds the provider. In managed mode m runs Azurite and the keys
 // are generated and journaled; in byo mode m is nil and the accounts
-// come from the configuration.
+// come from the configuration. seed is the secret user delegation keys
+// are derived from; it must be stable across restarts (the state key).
 func New(cfg config.Config, st *store.Store, journal *state.Log,
-	m *azurite.Manager) (*Provider, error) {
-	p := &Provider{cfg: cfg, store: st, keys: newKeyStore(journal), azurite: m, now: time.Now}
+	m *azurite.Manager, seed []byte) (*Provider, error) {
+	p := &Provider{cfg: cfg, store: st, keys: newKeyStore(journal), azurite: m, now: time.Now,
+		delegationSeed: seed}
 	if cfg.Azurite.Mode == "byo" {
 		p.byo = map[string]string{}
 		for _, a := range cfg.Azurite.Accounts {

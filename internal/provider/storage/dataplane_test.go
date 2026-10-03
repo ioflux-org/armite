@@ -22,7 +22,7 @@ import (
 const (
 	blobDataContributorRole = "ba92f5b4-2d11-453d-a403-e96b0029c9fe"
 	readerRole              = "acdd72a7-3385-48ef-bd42-f606fba81ae7"
-	accountHost             = "stdemo.blob.localhost:8443"
+	accountHost             = "stdemo.blob.core.localhost:8443"
 )
 
 var (
@@ -278,7 +278,7 @@ func TestDataPlaneRefusals(t *testing.T) {
 	if rec.Code != http.StatusUnauthorized || storageCode(rec) != errInvalidAuthentication {
 		t.Errorf("ARM-audience token: %d %s, want 401", rec.Code, storageCode(rec))
 	}
-	rec = dp(t, h, http.MethodGet, "nope.blob.localhost:8443", "/?comp=list", tok, "")
+	rec = dp(t, h, http.MethodGet, "nope.blob.core.localhost:8443", "/?comp=list", tok, "")
 	if rec.Code != http.StatusNotFound || storageCode(rec) != errResourceNotFound {
 		t.Errorf("unknown account: %d %s", rec.Code, storageCode(rec))
 	}
@@ -291,13 +291,13 @@ func TestDataPlaneRefusals(t *testing.T) {
 	}
 
 	// The queue and table hosts answer the one probe Terraform makes.
-	rec = dp(t, h, http.MethodGet, "stdemo.queue.localhost:8443",
+	rec = dp(t, h, http.MethodGet, "stdemo.queue.core.localhost:8443",
 		"/?restype=service&comp=properties", tok, "")
 	if rec.Code != http.StatusOK ||
 		!strings.Contains(rec.Body.String(), "<StorageServiceProperties>") {
 		t.Errorf("queue probe: %d %s", rec.Code, rec.Body.String())
 	}
-	rec = dp(t, h, http.MethodPut, "stdemo.table.localhost:8443", "/Tables", tok, "")
+	rec = dp(t, h, http.MethodPut, "stdemo.table.core.localhost:8443", "/Tables", tok, "")
 	if rec.Code != http.StatusNotFound || storageCode(rec) != "FeatureNotSupported" {
 		t.Errorf("table operation: %d %s", rec.Code, storageCode(rec))
 	}
