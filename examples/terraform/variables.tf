@@ -9,3 +9,9 @@ variable "public_vault" {
   type        = bool
   default     = false
 }
+
+variable "grant_blob_contributor" {
+  description = "Grant the Owner 'Storage Blob Data Contributor' on the account. false = watch the 403."
+  type        = bool
+  default     = true
+}
