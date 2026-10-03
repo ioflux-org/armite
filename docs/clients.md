@@ -2,21 +2,16 @@
 
 Provisio serves `https://management.localhost:8443` (ARM),
 `https://login.localhost:8443` (Entra), `https://{vault}.vault.localhost:8443`
-(Key Vault data plane) and `http://127.0.0.1:8081` (IMDS). Every client
-needs three things: the hostnames resolving to 127.0.0.1, the CA in
-`certs/ca.pem`, and Entra instance discovery disabled.
+(Key Vault data plane), `https://{account}.blob.core.localhost:8443` (blob
+data plane) and `http://127.0.0.1:8081` (IMDS). Every client needs three
+things: the hostnames resolving to 127.0.0.1, the CA in `certs/ca.pem`,
+and Entra instance discovery disabled.
 
 ## Hosts
 
-```text
-127.0.0.1  management.localhost
-127.0.0.1  login.localhost
-127.0.0.1  kv-demo.vault.localhost      # one line per vault name
-```
-
-Linux with systemd-resolved resolves `*.localhost` without these; WSL2,
-macOS, Windows and containers need them. On WSL2 set `generateHosts =
-false` in `/etc/wsl.conf` or the file is rewritten at boot.
+Linux with systemd-resolved resolves every `*.localhost` name already;
+WSL2 and macOS need a one-time resolver fix, or one `/etc/hosts` line
+per vault and account. Both are in [dns.md](dns.md).
 
 ## curl
 

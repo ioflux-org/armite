@@ -120,6 +120,51 @@ table` fails because the table wants principal names; use `-o json`
   because az builds it from the DNS suffix by concatenation.
   _environment_
 
+## Storage
+
+- **Azurite holds the blobs and validates key-based auth.** Bearer
+  requests are verified and RBAC-checked by Provisio, then re-signed with
+  the account key and forwarded; Shared Key and key-signed SAS requests
+  pass through and Azurite validates them. _simplification_
+- **Creating, deleting or re-keying an account restarts Azurite** (about
+  two seconds, other accounts answer 502 meanwhile): Azurite reads its
+  accounts at start-up only. _environment_
+- **Bring-your-own Azurite serves only the accounts listed in
+  `azurite.accounts`**; another name is refused with 400
+  `StorageAccountNotConfigured`. _invention_
+- **The blob host is `blob.core.localhost`**, not `blob.localhost`: the
+  Python SDK, hence az, finds the account name only in a host containing
+  `.blob.core.`. _environment_
+- **`PUT storageAccounts` answers 200, never 201 or 202**: the account is
+  ready synchronously and the SDK pollers accept only 200 and 202.
+  _simplification_
+- **Only the blob endpoint is advertised**; the queue and table hosts
+  answer the service-properties probe Terraform makes and refuse all
+  else (`FeatureNotSupported`); `fileServices`, `queueServices` and
+  `tableServices` on the management plane return defaults and echo
+  PUTs. _deferred_
+- **403 messages carry the operation, action, scope and caller** after
+  Azure's standard first line. _invention_
+- **Unknown blob operations are refused (400 `UnsupportedOperation`)**
+  rather than forwarded: batch, immutability policies, legal holds, Data
+  Lake paths; SAS tokens bound to request headers or parameters, or to a
+  stored access policy with a user delegation key. _deferred_
+- **User delegation keys are derived, not stored**: the value is an HMAC
+  of the key's own fields with a server secret, so a SAS can be checked
+  without lookup. _simplification_
+- **`checkNameAvailability` is authorized as `…/action`**; Azure grants it
+  as `…/checknameavailability/read`, so Reader could call it there, not
+  here yet. _simplification_
+- **Deleting an account deletes its containers upstream** (best effort),
+  so a re-created name starts empty. _simplification_
+- **Azurite's own port (`10000`, loopback) stays reachable** without
+  Provisio in front: anyone on the machine with an account key bypasses
+  RBAC there, as the key would anywhere. _accepted limitation_
+- **Blob data is not encrypted at rest** (`state/azurite`), unlike
+  Provisio's own state. _accepted limitation_
+- **Listings keep Azurite's `ServiceEndpoint` value**, not the account's
+  URL; no client we ran reads it. _deferred_
+
 ## Client caveats (not Provisio's)
 
 - `az keyvault update --set tags.x=y` is broken in az 2.89.1 against

@@ -1,8 +1,9 @@
 # Terraform against Provisio
 
 The azurerm provider, unmodified, creating a resource group, a Key Vault,
-a role assignment and a secret in Provisio - and being refused the secret
-until the role assignment exists.
+a storage account, two role assignments, a secret, a container and a
+blob in Provisio - and being refused the secret and the blob until the
+role assignments exist.
 
 ## Prerequisites
 
@@ -14,7 +15,14 @@ until the role assignment exists.
    127.0.0.1  management.localhost
    127.0.0.1  login.localhost
    127.0.0.1  kv-demo.vault.localhost
+   127.0.0.1  stdemo.blob.core.localhost
+   127.0.0.1  stdemo.queue.core.localhost
+   127.0.0.1  stdemo.table.core.localhost
    ```
+
+   (or the one-time resolver fix in `docs/dns.md`, after which every
+   `*.localhost` name resolves). The queue and table names exist only
+   because the provider probes them when it creates the account.
 
 3. **Trust the CA.** Terraform is a Go program and honours `SSL_CERT_FILE`,
    so no system-wide install is needed:
@@ -45,12 +53,22 @@ terraform apply
 #   azurerm_key_vault_secret.db: Creation complete
 #   Outputs: secret_id = "https://kv-demo.vault.localhost:8443/secrets/db-pass/..."
 
+# 3. The same story on storage: the Owner creates the account and the
+#    container (management actions) and cannot upload the blob (a data
+#    action) until Storage Blob Data Contributor is granted.
+terraform apply -var grant_blob_contributor=false
+#   ... Error: ... hello.txt ... 403 ... AuthorizationPermissionMismatch
+#   ... Action: 'Microsoft.Storage/storageAccounts/blobServices/containers/blobs/write'
+terraform apply
+#   azurerm_storage_blob.hello: Creation complete
+#   Outputs: blob_url = "https://stdemo.blob.core.localhost:8443/demo/hello.txt"
+
 terraform destroy
 ```
 
-The first apply exits non-zero on purpose and leaves the resource group
-and the vault in the state; the second apply adds the assignment and the
-secret. `terraform destroy` removes all four, purging the vault on the
+The applies that exit non-zero do so on purpose and leave what succeeded
+in the state; the next apply adds the assignment and the secret or the
+blob. `terraform destroy` removes everything, purging the vault on the
 way as the provider does by default.
 
 ## How the provider is pointed at Provisio
@@ -67,11 +85,14 @@ model (they are all reported as registered).
 ## Timing
 
 Provisio answers every call at once; the durations are the provider's
-own pollers: about 20 s for the resource group and the role assignment,
-about 20 s to soft-delete and purge the secret. A vault with
-`public_network_access_enabled = true` (`-var public_vault=true`) adds
-the provider's availability poll, ten checks ten seconds apart after a
-30 s delay, about 2 min 10 s - the same wait as against real Azure.
+own pollers: about 20 s for the resource group and each role
+assignment, about 20 s to soft-delete and purge the secret, about a
+minute for the storage account (the provider waits for the blob, queue,
+file, static-website and table services in turn, ten seconds each). A
+vault with `public_network_access_enabled = true` (`-var
+public_vault=true`) adds the provider's availability poll, ten checks
+ten seconds apart after a 30 s delay, about 2 min 10 s - the same wait
+as against real Azure.
 
 ## State and lock file
 

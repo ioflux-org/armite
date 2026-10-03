@@ -9,6 +9,7 @@ gateway over TLS - no Go test doubles involved.
 | `smoke.mjs` | `ClientSecretCredential` obtains a token from `login.localhost`; prints the decoded claims and verifies the second `getToken` is served from the SDK's cache |
 | `arm-smoke.mjs` | The token is accepted by the gateway at `management.localhost`: authenticated request passes authn and reaches the ARM pipeline |
 | `keyvault-smoke.mjs` | The full RBAC demo through `@azure/keyvault-secrets`: Owner creates a vault, is refused a secret (403 `ForbiddenByRbac`), grants itself Key Vault Secrets Officer, runs the secret lifecycle incl. soft-delete pollers, revokes the grant and is refused again; exits non-zero on any mismatch |
+| `blob-smoke.mjs` | The storage twin through `@azure/storage-blob`: Owner creates an account and a container, is refused a blob (403 `AuthorizationPermissionMismatch`), grants itself Storage Blob Data Contributor, uploads, downloads and lists; the account key and a service SAS pass through to Azurite; a user delegation SAS is issued by Provisio and dies with the grant; `allowSharedKeyAccess=false` refuses key and SAS; exits non-zero on any mismatch |
 
 ## One-time setup
 
@@ -25,7 +26,11 @@ gateway over TLS - no Go test doubles involved.
    127.0.0.1  management.localhost
    127.0.0.1  login.localhost
    127.0.0.1  kv-demo.vault.localhost
+   127.0.0.1  stdemo.blob.core.localhost
    ```
+
+   (or the one-time resolver fix in `docs/dns.md`). `blob-smoke.mjs`
+   also needs `azurite-blob` on the server's PATH: `npm install -g azurite`.
 
 3. **CA certificate** - the server generates `certs/ca.pem` on first run.
    Node ignores the system trust store and ships its own CA bundle, so the
@@ -63,7 +68,12 @@ Alternatively, put the five variables in `scripts/sdk-smoke/.env`
 ```bash
 NODE_EXTRA_CA_CERTS=certs/ca.pem node --env-file=scripts/sdk-smoke/.env scripts/sdk-smoke/arm-smoke.mjs
 NODE_EXTRA_CA_CERTS=certs/ca.pem node --env-file=scripts/sdk-smoke/.env scripts/sdk-smoke/keyvault-smoke.mjs
+NODE_EXTRA_CA_CERTS=certs/ca.pem node --env-file=scripts/sdk-smoke/.env scripts/sdk-smoke/blob-smoke.mjs
 ```
+
+`blob-smoke.mjs` takes `PROVISIO_ARM` and `PROVISIO_STORAGE_SUFFIX` for a
+server on other ports or hostnames (defaults
+`https://management.localhost:8443` and `core.localhost:8443`).
 
 ## Expected output
 

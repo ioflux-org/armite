@@ -6,8 +6,12 @@
 docker build -t provisio:dev .
 ```
 
-Multi-stage: a static Go binary in a distroless image, about 18 MB, no
-shell, running as a non-root user.
+Multi-stage: a static Go binary on `node:22-alpine` with Azurite
+installed, running as the image's non-root `node` user. About 110 MB to
+pull; `docker images` reports about 680 MB unpacked, most of it
+Azurite's dependencies. Node is there because storage accounts are
+served by Azurite, a Node program Provisio starts inside the container;
+nothing to install.
 
 ## Run
 
@@ -27,10 +31,11 @@ docker run --rm --name provisio \
 ```
 
 The CA is generated once and reused on every start, so trust it once.
-`8443` serves ARM, the login endpoint and every vault; `8081` is IMDS for
-managed-identity clients. The state files are encrypted with the key in
-`certs/`, so keep or discard the two directories together; see
-[persistence.md](persistence.md).
+`8443` serves ARM, the login endpoint, every vault and every storage
+account; `8081` is IMDS for managed-identity clients. The state files
+are encrypted with the key in `certs/`, so keep or discard the two
+directories together; see [persistence.md](persistence.md). Azurite's
+blobs live under `state/azurite`, unencrypted.
 
 To use a configuration file, mount it and name it:
 
@@ -56,18 +61,10 @@ them and starts over.
 
 ## Reaching it
 
-Every client talks to Provisio by hostname, so the hostnames must point
-at the published ports. On the host, add to `/etc/hosts` (on WSL2, set
-`generateHosts = false` in `/etc/wsl.conf` first, or the file is
-rewritten):
-
-```text
-127.0.0.1  management.localhost
-127.0.0.1  login.localhost
-127.0.0.1  kv-demo.vault.localhost
-```
-
-One line per vault name you create. Then trust the CA, per client:
+Every client talks to Provisio by hostname, so the hostnames must
+resolve to the host the ports are published on - a resolver fix or one
+`/etc/hosts` line per vault and account, see [dns.md](dns.md). Then
+trust the CA, per client:
 
 | client                         | how                                                                                      |
 | ------------------------------ | ---------------------------------------------------------------------------------------- |

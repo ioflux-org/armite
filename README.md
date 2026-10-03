@@ -33,11 +33,12 @@ and in CI instead of in production.
 | ARM                     | Subscriptions, tenants, resource groups, generic resource listing, the resource-provider catalogue, cloud discovery (`/metadata/endpoints`)     |
 | Microsoft.Authorization | Role definitions (read), role assignments (create, read, list, delete)                                                                          |
 | Microsoft.KeyVault      | Vaults (management plane); secrets with versions, soft delete, recover and purge (data plane, one hostname per vault, challenge authentication) |
+| Microsoft.Storage       | Storage accounts, keys and containers; a blob data plane with RBAC on every call, served by Azurite behind it; key, SAS and user delegation SAS |
 | Persistence             | Everything created through the API survives restarts and crashes: an encrypted journal in state/, no database to run                            |
 
-Verified end to end with `az` 2.89, `@azure/identity` and
-`@azure/keyvault-secrets`, `azure-identity` for Python, Terraform 1.16
-with the unmodified azurerm provider, and curl.
+Verified end to end with `az` 2.89, `@azure/identity`,
+`@azure/keyvault-secrets` and `@azure/storage-blob`, `azure-identity` for
+Python, Terraform 1.16 with the unmodified azurerm provider, and curl.
 
 ## Quickstart
 
@@ -45,13 +46,15 @@ with the unmodified azurerm provider, and curl.
 go run ./cmd/provisio          # or: docker compose up -d  (see docs/docker.md)
 ```
 
-The server generates a private CA in `certs/` at first boot, keeps what you create in `state/`, and serves `https://management.localhost:8443` (ARM), `https://login.localhost:8443` (Entra) and `https://{vault}.vault.localhost:8443` (Key Vault data
-plane), plus IMDS on `http://127.0.0.1:8081`. Two things every client
-needs:
+The server generates a private CA in `certs/` at first boot, keeps what you create in `state/`, and serves `https://management.localhost:8443` (ARM), `https://login.localhost:8443` (Entra), `https://{vault}.vault.localhost:8443` (Key Vault data
+plane) and `https://{account}.blob.core.localhost:8443` (blobs), plus
+IMDS on `http://127.0.0.1:8081`. Storage accounts need `azurite-blob` on
+your PATH (`npm install -g azurite`; the Docker image has it) and are
+otherwise off. Two things every client needs:
 
-1. **Hostnames.** Add to `/etc/hosts` (WSL2: set `generateHosts = false`
-   in `/etc/wsl.conf` first): `127.0.0.1 management.localhost login.localhost kv-demo.vault.localhost`, one vault name per line.
-   On Linux with systemd-resolved the `*.localhost` names already resolve.
+1. **Hostnames** resolving to 127.0.0.1. Linux with systemd-resolved
+   does it already; WSL2 and macOS need a one-time resolver fix or one
+   `/etc/hosts` line per name — see [docs/dns.md](docs/dns.md).
 2. **The CA.** `certs/ca.pem`, passed per client (`curl --cacert`,
    `REQUESTS_CA_BUNDLE`, `NODE_EXTRA_CA_CERTS`, `SSL_CERT_FILE`).
 
@@ -78,8 +81,10 @@ az keyvault secret set --vault-name kv-demo -n db-pass --value hunter2   # 200
 ```
 
 The same demo through the SDK is `scripts/sdk-smoke/keyvault-smoke.mjs`,
-and through Terraform `examples/terraform`. Client setup for every tool
-is in [docs/clients.md](docs/clients.md).
+and through Terraform `examples/terraform`. The storage twin — Owner
+creates a container and cannot upload a blob — is in
+[docs/storage.md](docs/storage.md). Client setup for every tool is in
+[docs/clients.md](docs/clients.md).
 
 ## Built-in identities
 
@@ -114,6 +119,8 @@ elsewhere. The complete list is in
 - Key Vault soft delete is the minimum the SDKs' pollers need; vaults
   themselves are deleted at once; Key Vault keys and certificates are not
   served yet.
+- Storage is blobs only, held by Azurite: no queues, tables or files;
+  creating an account restarts Azurite for about two seconds.
 
 ## Why another emulator
 

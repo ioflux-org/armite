@@ -12,6 +12,7 @@ sent.
 | --------------------- | ----------------------------------- | ----------------------- |
 | `journal`, `snapshot` | `state/` (config `state.dir`)       | first boot, first write |
 | `state.key`           | `certs/` (next to the CA key), 0600 | first boot              |
+| `azurite/`            | `state/`, Azurite's own files       | first storage account   |
 
 The two directories belong together: the state files are encrypted
 (AES-256-GCM) with the key, so the state directory on its own cannot be
@@ -22,6 +23,9 @@ To supply your own key instead of the generated one, set `state.key`
 in `provisio.yaml` or `PROVISIO_STATE_KEY` to a base64 32-byte value
 (`openssl rand -base64 32`). Then the state directory is unreadable to
 anyone who does not also have that value.
+
+Blob contents are Azurite's and are not encrypted; account metadata and
+keys are Provisio's and are.
 
 ## How
 
