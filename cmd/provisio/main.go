@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/exec"
@@ -14,6 +15,7 @@ import (
 	"github.com/ioflux-org/provisio/internal/config"
 	"github.com/ioflux-org/provisio/internal/entra"
 	"github.com/ioflux-org/provisio/internal/gateway"
+	"github.com/ioflux-org/provisio/internal/httplog"
 	"github.com/ioflux-org/provisio/internal/pki"
 	"github.com/ioflux-org/provisio/internal/provider/authorization"
 	"github.com/ioflux-org/provisio/internal/provider/keyvault"
@@ -46,6 +48,13 @@ func main() {
 	if len(os.Args) > 1 {
 		runCommand(cfg, path, os.Args[1:])
 		return
+	}
+	// slog's default handler writes through the log package, so text
+	// mode keeps log's own format; json installs a handler of its own,
+	// and SetDefault routes the log package through it too, so every
+	// line, from either API, comes out as JSON.
+	if cfg.Log.Format == "json" {
+		slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stderr, nil)))
 	}
 	if path != "" {
 		log.Printf("Loaded configuration from %s", path)
@@ -144,23 +153,26 @@ func main() {
 	registry.Register("Microsoft.Resources", resources.New(cfg, resourceStore, registry.Catalog))
 	registry.Register("Microsoft.KeyVault", vaults)
 	registry.Register("Microsoft.Authorization", authorization.New(cfg, defs, assignments, time.Now))
+	// Every plane is wrapped the same way: a request id on the response
+	// and one log line per request. A nil blob plane stays nil - that is
+	// how the router knows storage is off.
 	var blobPlane http.Handler
 	if accounts != nil {
 		registry.Register("Microsoft.Storage", accounts)
-		blobPlane = accounts.DataPlane(&signingKey.PublicKey, time.Now, checker)
+		blobPlane = httplog.Wrap("blob", accounts.DataPlane(&signingKey.PublicKey, time.Now, checker))
 	} else {
 		registry.Disable("Microsoft.Storage")
 	}
 
-	arm := gateway.New(cfg, &signingKey.PublicKey, time.Now, checker, registry)
-	dataPlane := vaults.DataPlane(&signingKey.PublicKey, time.Now, checker)
+	arm := httplog.Wrap("arm", gateway.New(cfg, &signingKey.PublicKey, time.Now, checker, registry))
+	dataPlane := httplog.Wrap("vault", vaults.DataPlane(&signingKey.PublicKey, time.Now, checker))
 	server := &http.Server{
 		Addr:    cfg.ListenerAddr,
-		Handler: router.New(cfg, login, arm, dataPlane, blobPlane),
+		Handler: router.New(cfg, httplog.Wrap("entra", login), arm, dataPlane, blobPlane),
 	}
 	imds := &http.Server{
 		Addr:    cfg.IMDSAddr,
-		Handler: entra.NewIMDS(cfg, signingKey),
+		Handler: httplog.Wrap("imds", entra.NewIMDS(cfg, signingKey)),
 	}
 
 	// Each server blocks its own goroutine; the first one to fail stops the

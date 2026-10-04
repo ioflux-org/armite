@@ -35,7 +35,6 @@ func New(cfg config.Config, signingKey *rsa.PrivateKey) *Handler {
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	log.Printf("entra: %s %s", r.Method, r.URL.Path)
 	h.mux.ServeHTTP(w, r)
 }
 

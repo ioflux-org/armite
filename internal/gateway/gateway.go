@@ -2,7 +2,6 @@ package gateway
 
 import (
 	"crypto/rsa"
-	"log"
 	"net/http"
 	"time"
 
@@ -40,6 +39,5 @@ func New(
 }
 
 func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	log.Printf("arm: %s %s", r.Method, r.URL.RequestURI())
 	g.handler.ServeHTTP(w, r)
 }

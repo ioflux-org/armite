@@ -79,7 +79,7 @@ type recordingAzurite struct {
 func (f *recordingAzurite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	r.Body.Close()
 	f.calls = append(f.calls, r)
-	w.Header().Set("x-ms-request-id", "upstream")
+	w.Header().Set("ETag", `"upstream"`)
 	w.Write([]byte("ok"))
 }
 
@@ -206,7 +206,7 @@ func TestBlobDataContributorIsReSigned(t *testing.T) {
 		t.Errorf("forwarded Host=%s path=%s Authorization=%q version=%q", up.Host,
 			up.URL.EscapedPath(), up.Header.Get("Authorization"), up.Header.Get("x-ms-version"))
 	}
-	if rec.Header().Get("x-ms-request-id") != "upstream" {
+	if rec.Header().Get("ETag") != `"upstream"` {
 		t.Error("the upstream's response headers must be relayed")
 	}
 	// Reader has */read: containers yes, blobs no.

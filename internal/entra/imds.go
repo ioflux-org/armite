@@ -53,7 +53,6 @@ func NewIMDS(cfg config.Config, signingKey *rsa.PrivateKey) *IMDS {
 }
 
 func (s *IMDS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	log.Printf("imds: %s %s", r.Method, r.URL.RequestURI())
 	s.mux.ServeHTTP(w, r)
 }
 

@@ -109,7 +109,6 @@ func (p *Provider) serveDelegationKey(w http.ResponseWriter, r *http.Request, oi
 	}
 	w.Header().Set("Content-Type", "application/xml")
 	w.Header().Set("x-ms-version", version)
-	w.Header().Set("x-ms-request-id", newRequestID())
 	w.Write([]byte(xml.Header))
 	w.Write(body)
 }

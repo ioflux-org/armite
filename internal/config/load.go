@@ -187,6 +187,9 @@ func (c Config) Validate() error {
 			fail(key+".key", "must be the base64 key Azurite was started with")
 		}
 	}
+	if c.Log.Format != "text" && c.Log.Format != "json" {
+		fail("log.format", fmt.Sprintf("%q must be text or json", c.Log.Format))
+	}
 	return errors.Join(errs...)
 }
 
@@ -287,6 +290,8 @@ func Template() ([]byte, error) {
 			"keeps its data under the state directory. byo: Provisio forwards to upstream,\n" +
 			"an Azurite you run; list the accounts and keys it was started with. off: no\n" +
 			"storage accounts.", ""},
+		{"log", "text: one line per message, for a terminal. json: one object per line, for\n" +
+			"a collector. Every request gets one line, with the x-ms-request-id it answered.", ""},
 	}
 	for _, n := range notes {
 		if err := annotate(&doc, n.path, n.head, n.line); err != nil {

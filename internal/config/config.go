@@ -74,6 +74,7 @@ type Config struct {
 	RoleAssignments      []SeedAssignment `yaml:"role_assignments"`
 	State                State            `yaml:"state"`
 	Azurite              Azurite          `yaml:"azurite"`
+	Log                  Log              `yaml:"log"`
 }
 
 // Azurite is the blob store behind the storage data plane. In managed
@@ -95,6 +96,13 @@ type Azurite struct {
 type StorageAccount struct {
 	Name string `yaml:"name"`
 	Key  string `yaml:"key"`
+}
+
+// Log is how the server writes its log: Format "text" is one line per
+// message, for a terminal; "json" is one object per line, for a
+// collector. Either way every request gets one line, with its id.
+type Log struct {
+	Format string `yaml:"format"`
 }
 
 func Default() Config {
@@ -122,6 +130,7 @@ func Default() Config {
 		},
 		State:   State{Dir: "state", CompactAfterMB: 8},
 		Azurite: Azurite{Mode: "managed", Command: "azurite-blob", Port: 10000},
+		Log:     Log{Format: "text"},
 	}
 	sub := "/subscriptions/" + config.SubscriptionID
 	config.RoleAssignments = []SeedAssignment{
@@ -238,8 +247,9 @@ func (c Config) AzuriteURL() string {
 // addresses PROVISIO_LISTEN_ADDR (ARM, login and the vaults) and
 // PROVISIO_IMDS_ADDR - the defaults bind the loopback interface, which
 // a container's published ports cannot reach, so the image sets both to
-// 0.0.0.0 - and the state directory and key, PROVISIO_STATE_DIR and
-// PROVISIO_STATE_KEY. Hostnames and the port clients use are unchanged.
+// 0.0.0.0 - the state directory and key, PROVISIO_STATE_DIR and
+// PROVISIO_STATE_KEY, and the log format, PROVISIO_LOG_FORMAT. Hostnames
+// and the port clients use are unchanged.
 func FromEnv() Config {
 	cfg := Default()
 	applyEnv(&cfg)
@@ -258,6 +268,9 @@ func applyEnv(cfg *Config) {
 	}
 	if v := os.Getenv("PROVISIO_STATE_KEY"); v != "" {
 		cfg.State.Key = v
+	}
+	if v := os.Getenv("PROVISIO_LOG_FORMAT"); v != "" {
+		cfg.Log.Format = v
 	}
 }
 

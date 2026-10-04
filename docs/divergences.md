@@ -96,6 +96,10 @@ table` fails because the table wants principal names; use `-o json`
 - Error codes are faithful in shape everywhere; exact codes and messages
   are guaranteed only where verified against live client traffic.
   _accepted limitation_
+- Responses carry `x-ms-request-id` and echo `x-ms-client-request-id`
+  on every plane; no `x-ms-correlation-request-id` or
+  `x-ms-routing-request-id`, and a proxied blob response carries
+  Provisio's id, not Azurite's. _simplification_
 
 ## Key Vault
 

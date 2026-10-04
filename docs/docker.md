@@ -85,6 +85,7 @@ Managed-identity clients set `AZURE_POD_IDENTITY_AUTHORITY_HOST=http://127.0.0.1
 | `PROVISIO_STATE_DIR`   | `state`                              | `/app/state`                   |
 | `PROVISIO_STATE_KEY`   | unset (generated into the cert dir)  | unset                          |
 | `PROVISIO_CONFIG`      | unset (`./provisio.yaml` if present) | unset; mount a file and set it |
+| `PROVISIO_LOG_FORMAT`  | `text`                               | unset; `json` for a collector  |
 
 The image binds all interfaces because Docker's published ports cannot
 reach a container's loopback interface; publish on `127.0.0.1` as above

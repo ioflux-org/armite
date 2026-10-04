@@ -90,7 +90,8 @@ Caller: oid=44444444-4444-4444-4444-444444444444
 
 ```bash
 az storage blob generate-sas -c demo -n hello.txt --account-name stdemo \
-  --permissions r --expiry 2026-12-31T00:00Z --auth-mode login --as-user
+  --permissions r --expiry "$(date -u -d '+1 day' +%Y-%m-%dT%H:%MZ)" \
+  --auth-mode login --as-user      # macOS: date -u -v+1d +%Y-%m-%dT%H:%MZ
 ```
 
 The key is issued by Provisio to the calling principal (action

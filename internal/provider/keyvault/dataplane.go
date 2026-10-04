@@ -3,7 +3,6 @@ package keyvault
 import (
 	"crypto/rsa"
 	"fmt"
-	"log"
 	"net"
 	"net/http"
 	"strings"
@@ -29,7 +28,6 @@ func (p *Provider) DataPlane(pub *rsa.PublicKey, now func() time.Time,
 	challenge := fmt.Sprintf("Bearer authorization=%q, resource=%q",
 		p.cfg.LoginBaseURL()+"/"+p.cfg.TenantID, p.cfg.VaultAudience())
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("vault: %s %s%s", r.Method, r.Host, r.URL.RequestURI())
 		v, ok := p.vaultFor(r.Host)
 		if !ok {
 			writeKVError(w, http.StatusNotFound, kvVaultNotFound,

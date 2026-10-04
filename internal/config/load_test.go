@@ -67,12 +67,16 @@ func TestLoadEnvAfterFile(t *testing.T) {
 	t.Setenv("PROVISIO_LISTEN_ADDR", "0.0.0.0:9443")
 	t.Setenv("PROVISIO_STATE_DIR", "/tmp/b")
 	t.Setenv("PROVISIO_STATE_KEY", testStateKey)
+	t.Setenv("PROVISIO_LOG_FORMAT", "json")
 	got, err := Load(path)
 	if err != nil || got.ListenerAddr != "0.0.0.0:9443" {
 		t.Errorf("env must win over the file: %q, %v", got.ListenerAddr, err)
 	}
 	if got.State.Dir != "/tmp/b" || got.State.Key != testStateKey {
 		t.Errorf("state env must win over the file: %+v", got.State)
+	}
+	if got.Log.Format != "json" {
+		t.Errorf("log format env must apply: %q", got.Log.Format)
 	}
 }
 
@@ -114,6 +118,11 @@ func TestValidateNamesEveryProblem(t *testing.T) {
 	good.Azurite = Azurite{Mode: "nope"}
 	if err := good.Validate(); err == nil || !strings.Contains(err.Error(), "azurite.mode") {
 		t.Errorf("an unknown azurite mode must be named: %v", err)
+	}
+	good.Azurite = Default().Azurite
+	good.Log.Format = "xml"
+	if err := good.Validate(); err == nil || !strings.Contains(err.Error(), "log.format") {
+		t.Errorf("an unknown log format must be named: %v", err)
 	}
 	same := Default()
 	same.BlobHost = "blob.localhost"
@@ -166,7 +175,8 @@ func TestTemplateIsCommentedAndLoadable(t *testing.T) {
 	text := string(out)
 	wants := []string{"# Provisio configuration", "# Owner", "# Contributor", "role_assignments:",
 		"# Where resources, role assignments and secrets persist", "compact_after_mb: 8",
-		"blob_host: blob.core.localhost", "# The blob store behind storage accounts", "mode: managed"}
+		"blob_host: blob.core.localhost", "# The blob store behind storage accounts", "mode: managed",
+		"# text: one line per message", "format: text"}
 	for _, want := range wants {
 		if !strings.Contains(text, want) {
 			t.Errorf("template lacks %q:\n%s", want, text)

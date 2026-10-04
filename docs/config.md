@@ -25,7 +25,8 @@ Three rules to know:
 - An unknown key stops the boot, with the line and the offending text.
   So does an invalid value; every problem in the file is reported at once.
 - The environment variables from the Docker image (`PROVISIO_LISTEN_ADDR`,
-  `PROVISIO_IMDS_ADDR`, `PROVISIO_CERT_DIR`, `PROVISIO_STATE_DIR`, `PROVISIO_STATE_KEY`) apply after the file.
+  `PROVISIO_IMDS_ADDR`, `PROVISIO_CERT_DIR`, `PROVISIO_STATE_DIR`, `PROVISIO_STATE_KEY`,
+  `PROVISIO_LOG_FORMAT`) apply after the file.
 
 ## Keys
 
@@ -47,6 +48,7 @@ Three rules to know:
 | `azurite.mode`                                               | `managed`                                                               | who runs the blob store: `managed` (Provisio starts `azurite-blob`), `byo` (yours) or `off`                                                       |
 | `azurite.command`, `azurite.port`                            | `azurite-blob`, `10000`                                                 | managed mode: the executable (on PATH) and its loopback port                                                                                      |
 | `azurite.upstream`, `azurite.accounts[]`                     |                                                                         | byo mode: your Azurite's URL, and the `name` + base64 `key` of each account it knows                                                              |
+| `log.format`                                                 | `text`                                                                  | `text` for a terminal, `json` for a collector; one line per request either way (see below)                                                        |
 
 Role GUIDs are Azure's fixed built-in ones:
 `az role definition list --query "[].{name:roleName,id:name}"`.
@@ -70,6 +72,34 @@ role_assignments:
 The first entry keeps Owner, because the list replaces the defaults. If
 you change a principal's `object_id`, update `role_assignments` too: a
 seed naming an unknown principal is refused at boot.
+
+## Logs and request ids
+
+Every response carries an `x-ms-request-id`, as Azure's do, and every
+request is one log line under that id:
+
+```text
+2026/10/04 16:35:06 INFO request id=2655f423-3e08-4301-b9bf-6ed5107f0710 plane=blob method=PUT host=stdemo.blob.core.localhost:8443 path=/demo/hello.txt status=403 bytes=595 duration=182µs error=AuthorizationPermissionMismatch client_request_id=7456ec8f-…
+```
+
+`plane` is `arm`, `entra`, `vault`, `blob` or `imds`; `error` is the
+`x-ms-error-code` of a refused request; `client_request_id` is the
+`x-ms-client-request-id` the client sent (az and the SDKs send one per
+call), echoed on the response too. A SAS signature in the query is
+logged as `sig=REDACTED`.
+
+To find the line for an error a client shows: `curl -i` prints the
+header; `az --debug` prints it for management-plane calls
+(`'X-Ms-Request-Id'`); storage errors carry `RequestId:` in the message,
+as Azure's do. Then `grep` the id in the server's output.
+
+`log.format: json` (or `PROVISIO_LOG_FORMAT=json`) writes one JSON
+object per line instead, for a log collector — every line, the boot
+messages included; `duration` is then in nanoseconds:
+
+```text
+{"time":"2026-10-04T16:36:12.98+05:30","level":"INFO","msg":"request","id":"865ece34-df15-461b-8bb8-45d289b6d026","plane":"arm","method":"GET","host":"management.localhost:8443","path":"/subscriptions?api-version=2022-12-01","status":401,"bytes":154,"duration":176395,"error":"AuthenticationFailed"}
+```
 
 ## What a bad file looks like
 

@@ -35,6 +35,7 @@ and in CI instead of in production.
 | Microsoft.KeyVault      | Vaults (management plane); secrets with versions, soft delete, recover and purge (data plane, one hostname per vault, challenge authentication) |
 | Microsoft.Storage       | Storage accounts, keys and containers; a blob data plane with RBAC on every call, served by Azurite behind it; key, SAS and user delegation SAS |
 | Persistence             | Everything created through the API survives restarts and crashes: an encrypted journal in state/, no database to run                            |
+| Operations              | One log line per request under the `x-ms-request-id` the client got back, text or JSON; secrets never logged                                    |
 
 Verified end to end with `az` 2.89, `@azure/identity`,
 `@azure/keyvault-secrets` and `@azure/storage-blob`, `azure-identity` for

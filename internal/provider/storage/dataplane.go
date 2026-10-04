@@ -2,9 +2,7 @@ package storage
 
 import (
 	"context"
-	"crypto/rand"
 	"crypto/rsa"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -32,14 +30,16 @@ const (
 )
 
 // writeStorageError answers in the Blob service's XML envelope, code in
-// the x-ms-error-code header as every storage client expects.
+// the x-ms-error-code header as every storage client expects, and the
+// request id in the message as the service writes it - the one httplog
+// put on the response before the handler ran.
 func writeStorageError(w http.ResponseWriter, status int, code, message string) {
 	w.Header().Set("Content-Type", "application/xml")
 	w.Header().Set("x-ms-error-code", code)
 	w.WriteHeader(status)
 	fmt.Fprintf(w, `<?xml version="1.0" encoding="utf-8"?><Error><Code>%s</Code><Message>%s
 RequestId:%s
-Time:%s</Message></Error>`, code, xmlEscaper.Replace(message), newRequestID(),
+Time:%s</Message></Error>`, code, xmlEscaper.Replace(message), w.Header().Get("x-ms-request-id"),
 		time.Now().UTC().Format("2006-01-02T15:04:05.0000000Z"))
 }
 
@@ -118,7 +118,6 @@ func (p *Provider) DataPlane(pub *rsa.PublicKey, now func() time.Time,
 		},
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("blob: %s %s%s", r.Method, r.Host, r.URL.RequestURI())
 		if p.serveUnservedStub(w, r) {
 			return
 		}
@@ -264,14 +263,6 @@ type accountKey struct{}
 
 func withAccount(ctx context.Context, name string) context.Context {
 	return context.WithValue(ctx, accountKey{}, name)
-}
-
-// newRequestID is the x-ms-request-id shape: a GUID.
-func newRequestID() string {
-	b := make([]byte, 16)
-	rand.Read(b)
-	h := hex.EncodeToString(b)
-	return h[:8] + "-" + h[8:12] + "-" + h[12:16] + "-" + h[16:20] + "-" + h[20:]
 }
 
 // serveUnservedStub answers the one call Terraform makes to an
