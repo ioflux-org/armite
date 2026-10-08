@@ -51,10 +51,11 @@ type Log struct {
 	aead         cipher.AEAD
 	compactAfter int64
 
-	mu      sync.Mutex // guards journal, size, stores
-	journal *os.File
-	size    int64
-	stores  map[string]Store
+	mu       sync.Mutex // guards journal, size, stores
+	journal  *os.File
+	size     int64
+	stores   map[string]Store
+	readOnly bool // opened by OpenReadOnly: never appends, truncates or compacts
 
 	compactMu  sync.Mutex // one compaction at a time
 	compacting bool
@@ -64,13 +65,9 @@ type Log struct {
 // key is the 32-byte AES-256 key every record is sealed with. Nothing is
 // read yet: attach the stores, then call Replay.
 func Open(dir string, key []byte, compactAfter int64) (*Log, error) {
-	block, err := aes.NewCipher(key)
+	aead, err := newAEAD(key)
 	if err != nil {
-		return nil, fmt.Errorf("state: key: %w", err)
-	}
-	aead, err := cipher.NewGCM(block)
-	if err != nil {
-		return nil, fmt.Errorf("state: %w", err)
+		return nil, err
 	}
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, fmt.Errorf("state: %w", err)
@@ -85,6 +82,30 @@ func Open(dir string, key []byte, compactAfter int64) (*Log, error) {
 	}
 	return &Log{dir: dir, aead: aead, compactAfter: compactAfter, journal: f,
 		size: info.Size(), stores: map[string]Store{}}, nil
+}
+
+// OpenReadOnly prepares an existing dir for Replay and nothing else:
+// nothing is created, a torn tail is left for the server that owns the
+// journal to cut, and Append fails. It is for a command that reads the
+// state beside a running server, such as "provisio hosts".
+func OpenReadOnly(dir string, key []byte) (*Log, error) {
+	aead, err := newAEAD(key)
+	if err != nil {
+		return nil, err
+	}
+	return &Log{dir: dir, aead: aead, stores: map[string]Store{}, readOnly: true}, nil
+}
+
+func newAEAD(key []byte) (cipher.AEAD, error) {
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, fmt.Errorf("state: key: %w", err)
+	}
+	aead, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, fmt.Errorf("state: %w", err)
+	}
+	return aead, nil
 }
 
 // Attach registers the store that owns records named name. Records for
@@ -127,6 +148,9 @@ func (l *Log) replayFile(path string, truncateTorn bool) error {
 		return fmt.Errorf("state: %s: %w", path, err)
 	}
 	if good < int64(len(data)) {
+		if l.readOnly {
+			return nil // the server owning the journal will cut the tail
+		}
 		if !truncateTorn {
 			return fmt.Errorf("state: %s: torn record at byte %d", path, good)
 		}
@@ -172,6 +196,9 @@ func (l *Log) apply(data []byte) (int64, error) {
 func (l *Log) Append(rec Record) error {
 	if l == nil {
 		return nil
+	}
+	if l.readOnly {
+		return errors.New("state: opened read-only")
 	}
 	frame, err := l.seal(rec)
 	if err != nil {

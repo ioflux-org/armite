@@ -4,18 +4,41 @@ Provisio runs with no configuration file. To change anything, generate
 the commented template and edit it:
 
 ```bash
-provisio config init          # writes ./provisio.yaml with every key and its default
-provisio config show          # the effective configuration, secrets masked
+provisio config init          # writes ~/.provisio/provisio.yaml with every key and its default
+provisio config show          # the effective configuration, secrets masked, and where it came from
 provisio config show --secrets
 provisio config check         # validate the file without starting the server
+provisio hosts                # the /etc/hosts lines for every hostname the server answers to
 ```
 
 With `go run`, replace `provisio` by `go run ./cmd/provisio`.
 
 The server reads the file named by `PROVISIO_CONFIG`, else `./provisio.yaml`
-when it exists, else it runs on the defaults; the boot log says which.
-Every key is optional: delete the ones you do not change and their
-defaults apply.
+in the working directory when it exists (a project's own, like a `.env`),
+else `~/.provisio/provisio.yaml` when it exists, else it runs on the
+defaults; the boot log says which. Every key is optional: delete the
+ones you do not change and their defaults apply.
+
+## Where things live
+
+Two places, following the platform's conventions:
+
+- **`~/.provisio/`**, the home directory: the CA and its key, the leaf
+  certificate and key, the token-signing key, the state key — generated
+  at first boot, private to you, long-lived — and the optional
+  configuration file. One identity per machine, so the server is the
+  same server to every client whichever directory it was started from,
+  and `~/.provisio/ca.pem` is the one path to trust.
+- **The data directory**, `state.dir`: the journal, the snapshot and
+  Azurite's files — everything created through the API, disposable.
+  `~/.local/share/provisio` on Linux (`$XDG_DATA_HOME/provisio` when
+  set), `~/Library/Application Support/provisio` on macOS,
+  `%LOCALAPPDATA%\provisio` on Windows. Delete it to start over; the
+  CA stays and clients stay trusted.
+
+`PROVISIO_HOME` moves the home directory and, so that one variable
+gives a container or a second instance a self-contained directory, puts
+the data under it as `state/` (the Docker image sets `/data`).
 
 Three rules to know:
 
@@ -25,8 +48,9 @@ Three rules to know:
 - An unknown key stops the boot, with the line and the offending text.
   So does an invalid value; every problem in the file is reported at once.
 - The environment variables from the Docker image (`PROVISIO_LISTEN_ADDR`,
-  `PROVISIO_IMDS_ADDR`, `PROVISIO_CERT_DIR`, `PROVISIO_STATE_DIR`, `PROVISIO_STATE_KEY`,
-  `PROVISIO_LOG_FORMAT`) apply after the file.
+  `PROVISIO_IMDS_ADDR`, `PROVISIO_STATE_DIR`, `PROVISIO_STATE_KEY`,
+  `PROVISIO_LOG_FORMAT`) apply after the file; `PROVISIO_HOME` moves the
+  home directory and the data under it.
 
 ## Keys
 
@@ -42,9 +66,9 @@ Three rules to know:
 | `imds_addr`                                                  | `127.0.0.1:8081`                                                        | the managed identity endpoint                                                                                                                     |
 | `managed_identity`                                           | `client_id` `5555…`, `object_id` `6666…`                                | the principal IMDS issues tokens for; it has no secret                                                                                            |
 | `role_assignments[]`                                         | Owner for the client, Contributor for the identity, at the subscription | granted at boot; `principal_id` must be a client's or the identity's `object_id`; `role_definition_id` is a built-in role GUID or a full ARM path |
-| `state.dir`                                                  | `state`                                                                 | where resources, assignments and secrets persist; `""` keeps them in memory (see [persistence.md](persistence.md))                                |
+| `state.dir`                                                  | the data directory (see above)                                          | where resources, assignments and secrets persist; relative = from the working directory; `""` = in memory ([persistence.md](persistence.md))      |
+| `state.key`                                                  | `""` (generated into `~/.provisio/`)                                    | base64 32-byte key the state files are encrypted with (`openssl rand -base64 32`)                                                                 |
 | `state.compact_after_mb`                                     | `8`                                                                     | journal size past which it is folded into the snapshot; `0` never                                                                                 |
-| `state.key`                                                  | `""` (generated into `certs/`)                                          | base64 32-byte key the state files are encrypted with (`openssl rand -base64 32`)                                                                 |
 | `azurite.mode`                                               | `managed`                                                               | who runs the blob store: `managed` (Provisio starts `azurite-blob`), `byo` (yours) or `off`                                                       |
 | `azurite.command`, `azurite.port`                            | `azurite-blob`, `10000`                                                 | managed mode: the executable (on PATH) and its loopback port                                                                                      |
 | `azurite.upstream`, `azurite.accounts[]`                     |                                                                         | byo mode: your Azurite's URL, and the `name` + base64 `key` of each account it knows                                                              |

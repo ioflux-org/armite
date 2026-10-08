@@ -15,37 +15,40 @@ nothing to install.
 
 ## Run
 
-The server generates its CA, leaf certificate, signing key and state
-key in `/app/certs` at first boot, and persists everything created
-through the API in `/app/state`. Mount host directories on both so you
-can read `ca.pem` and keep your resources across runs, and run as your
-own user so the files are yours:
+`/data` is the server's home directory (`PROVISIO_HOME`): the CA, leaf
+certificate, signing key and state key generated at first boot, and -
+because an explicit home is self-contained - `state/` with everything
+created through the API. Mount a host
+directory on it so you can read `ca.pem` and keep your resources across
+runs, and run as your own user so the files are yours:
 
 ```bash
-mkdir -p certs state
+mkdir -p provisio-data
 docker run --rm --name provisio \
   --user "$(id -u):$(id -g)" \
   -p 127.0.0.1:8443:8443 -p 127.0.0.1:8081:8081 \
-  -v "$PWD/certs:/app/certs" -v "$PWD/state:/app/state" \
+  -v "$PWD/provisio-data:/data" \
   provisio:dev
 ```
 
-The CA is generated once and reused on every start, so trust it once.
-`8443` serves ARM, the login endpoint, every vault and every storage
-account; `8081` is IMDS for managed-identity clients. The state files
-are encrypted with the key in `certs/`, so keep or discard the two
-directories together; see [persistence.md](persistence.md). Azurite's
-blobs live under `state/azurite`, unencrypted.
+The CA is generated once and reused on every start, so trust it once
+(`provisio-data/ca.pem`). `8443` serves ARM, the login endpoint, every
+vault and every storage account; `8081` is IMDS for managed-identity
+clients. The state files are encrypted with `state.key` next to them;
+delete `state/` alone to start over with the same CA, the whole
+directory to start over completely; see
+[persistence.md](persistence.md). Azurite's blobs live under
+`state/azurite`, unencrypted.
 
-To use a configuration file, mount it and name it:
+A configuration file goes where the server looks for it, the home
+directory:
 
 ```bash
 docker run --rm --name provisio \
   --user "$(id -u):$(id -g)" \
   -p 127.0.0.1:8443:8443 -p 127.0.0.1:8081:8081 \
-  -v "$PWD/certs:/app/certs" -v "$PWD/state:/app/state" \
-  -v "$PWD/provisio.yaml:/app/provisio.yaml:ro" \
-  -e PROVISIO_CONFIG=/app/provisio.yaml \
+  -v "$PWD/provisio-data:/data" \
+  -v "$PWD/provisio.yaml:/data/provisio.yaml:ro" \
   provisio:dev
 ```
 
@@ -53,25 +56,32 @@ docker run --rm --name provisio \
 
 ```bash
 docker compose up -d
-docker compose cp provisio:/app/certs/ca.pem ./ca.pem
+docker compose cp provisio:/data/ca.pem ./ca.pem
 ```
 
-Both directories are named volumes; `docker compose down -v` removes
-them and starts over.
+The directory is a named volume, `provisio_data`. To start over but
+keep the CA, stop the stack and empty the state inside it; `docker
+compose down -v` removes the volume and starts over completely:
+
+```bash
+docker compose stop
+docker run --rm -v provisio_data:/data alpine rm -rf /data/state
+docker compose start
+```
 
 ## Reaching it
 
 Every client talks to Provisio by hostname, so the hostnames must
-resolve to the host the ports are published on - a resolver fix or one
-`/etc/hosts` line per vault and account, see [dns.md](dns.md). Then
-trust the CA, per client:
+resolve to the host the ports are published on - a resolver fix, or the
+`/etc/hosts` lines `docker compose exec provisio /app/provisio hosts`
+prints, see [dns.md](dns.md). Then trust the CA, per client:
 
-| client                         | how                                                                                      |
-| ------------------------------ | ---------------------------------------------------------------------------------------- |
-| curl                           | `--cacert certs/ca.pem`                                                                  |
-| az                             | `REQUESTS_CA_BUNDLE=$PWD/certs/ca.pem` and `az config set core.instance_discovery=false` |
-| Node SDK                       | `NODE_EXTRA_CA_CERTS=certs/ca.pem`                                                       |
-| Terraform (and any Go program) | `SSL_CERT_FILE=$PWD/certs/ca.pem`                                                        |
+| client                         | how                                                                                |
+| ------------------------------ | ---------------------------------------------------------------------------------- |
+| curl                           | `--cacert ./ca.pem` (the copy read out above)                                      |
+| az                             | `REQUESTS_CA_BUNDLE=$PWD/ca.pem` and `az config set core.instance_discovery=false` |
+| Node SDK                       | `NODE_EXTRA_CA_CERTS=$PWD/ca.pem`                                                  |
+| Terraform (and any Go program) | `SSL_CERT_FILE=$PWD/ca.pem`                                                        |
 
 Managed-identity clients set `AZURE_POD_IDENTITY_AUTHORITY_HOST=http://127.0.0.1:8081`.
 
@@ -81,8 +91,8 @@ Managed-identity clients set `AZURE_POD_IDENTITY_AUTHORITY_HOST=http://127.0.0.1
 | ---------------------- | ------------------------------------ | ------------------------------ |
 | `PROVISIO_LISTEN_ADDR` | `127.0.0.1:8443`                     | `0.0.0.0:8443`                 |
 | `PROVISIO_IMDS_ADDR`   | `127.0.0.1:8081`                     | `0.0.0.0:8081`                 |
-| `PROVISIO_CERT_DIR`    | `certs`                              | `/app/certs`                   |
-| `PROVISIO_STATE_DIR`   | `state`                              | `/app/state`                   |
+| `PROVISIO_HOME`        | `~/.provisio`                        | `/data`                        |
+| `PROVISIO_STATE_DIR`   | the data directory (see config.md)   | unset (`/data/state`)          |
 | `PROVISIO_STATE_KEY`   | unset (generated into the cert dir)  | unset                          |
 | `PROVISIO_CONFIG`      | unset (`./provisio.yaml` if present) | unset; mount a file and set it |
 | `PROVISIO_LOG_FORMAT`  | `text`                               | unset; `json` for a collector  |

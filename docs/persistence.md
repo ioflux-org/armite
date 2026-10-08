@@ -8,16 +8,20 @@ sent.
 
 ## Where
 
-| what                  | where                               | created                 |
-| --------------------- | ----------------------------------- | ----------------------- |
-| `journal`, `snapshot` | `state/` (config `state.dir`)       | first boot, first write |
-| `state.key`           | `certs/` (next to the CA key), 0600 | first boot              |
-| `azurite/`            | `state/`, Azurite's own files       | first storage account   |
+| what                  | where                                     | created                 |
+| --------------------- | ----------------------------------------- | ----------------------- |
+| `journal`, `snapshot` | the data directory (config `state.dir`)   | first boot, first write |
+| `state.key`           | `~/.provisio/` (next to the CA key), 0600 | first boot              |
+| `azurite/`            | the data directory, Azurite's own files   | first storage account   |
 
-The two directories belong together: the state files are encrypted
-(AES-256-GCM) with the key, so the state directory on its own cannot be
-read, and without the key it cannot be opened. Keep both or discard
-both. In Docker they are the two volumes, `/app/certs` and `/app/state`.
+The data directory is `~/.local/share/provisio` on Linux,
+`~/Library/Application Support/provisio` on macOS, `%LOCALAPPDATA%\provisio`
+on Windows — or `$PROVISIO_HOME/state` when `PROVISIO_HOME` is set, as
+in Docker (`/data/state`). The state files are encrypted (AES-256-GCM)
+with the key, so the data directory on its own cannot be read, and
+without `state.key` it cannot be opened. Deleting the data directory is
+the way to start over: the keys stay, clients stay trusted. Deleting the
+keys alone leaves data nobody can read — delete both instead.
 
 To supply your own key instead of the generated one, set `state.key`
 in `provisio.yaml` or `PROVISIO_STATE_KEY` to a base64 32-byte value

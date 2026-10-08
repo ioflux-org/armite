@@ -13,7 +13,7 @@ limitation_ (unverified against a live subscription), _invention_
   Microsoft's hosts on 443. Every client needs endpoint configuration;
   `*.vault.localhost` resolves under systemd-resolved but needs a hosts
   entry per vault on WSL2, macOS and Windows. _environment_
-- **Private CA.** Clients trust `certs/ca.pem` explicitly. _environment_
+- **Private CA.** Clients trust `~/.provisio/ca.pem` explicitly. _environment_
 - **Instance discovery must be disabled** in every client; the authority
   is not in Entra's instance metadata and MSAL would otherwise ask
   `login.microsoftonline.com` (AADSTS50049). _environment_

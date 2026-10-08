@@ -60,9 +60,10 @@ Managed mode without `azurite-blob` on PATH logs one line at boot and
 behaves as `off`; everything else keeps working.
 
 Azurite reads its accounts at start-up only, which is why a changed
-account set means a restart. Its data lives under the state directory,
-so "delete `state/` to start over" and `docker compose down -v` take
-the blobs with them; it is not encrypted, unlike Provisio's own state.
+account set means a restart. Its data lives under the data directory,
+so "delete the data directory to start over" and `docker compose down
+-v` take the blobs with them; it is not encrypted, unlike Provisio's
+own state.
 
 ## Authentication on the data plane
 

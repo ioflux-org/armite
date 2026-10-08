@@ -279,8 +279,12 @@ func Template() ([]byte, error) {
 			"Officer (b86a8fe4-44ce-4948-aee5-eccb2c155cd7) to use vaults without a grant.", ""},
 		{"role_assignments.0.role_definition_id", "", "Owner"},
 		{"role_assignments.1.role_definition_id", "", "Contributor"},
-		{"state", "Where resources, role assignments and secrets persist across restarts.\n" +
-			"An empty dir keeps everything in memory. The journal is folded into the\n" +
+		{"state", "Where resources, role assignments and secrets persist across restarts:\n" +
+			"your data directory by default (~/.local/share/provisio on Linux, Library/\n" +
+			"Application Support on macOS, %LOCALAPPDATA% on Windows; $PROVISIO_HOME/state\n" +
+			"when PROVISIO_HOME is set); a relative dir is resolved from the directory the\n" +
+			"server runs in (./state keeps a project's data next to it); empty keeps\n" +
+			"everything in memory. The journal is folded into the\n" +
 			"snapshot past compact_after_mb (0: never). The files are encrypted with key,\n" +
 			"a base64 32-byte value (openssl rand -base64 32); leave it empty and one is\n" +
 			"generated into the certificate directory on first boot. Without the key the\n" +

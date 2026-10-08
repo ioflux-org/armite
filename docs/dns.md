@@ -31,17 +31,28 @@ entries per vault or account.
 
 Without a resolver fix, add one line per name to `/etc/hosts` (Windows:
 `C:\Windows\System32\drivers\etc\hosts`; WSL2: set `generateHosts = false`
-in `/etc/wsl.conf` first, or WSL rewrites the file):
+in `/etc/wsl.conf` first, or WSL rewrites the file). The server prints
+them — the fixed names, then one per vault and per storage account that
+exists, the queue and table twins included for Terraform — and it works
+beside a running server:
+
+```bash
+provisio hosts                       # or: go run ./cmd/provisio hosts
+provisio hosts | sudo tee -a /etc/hosts
+```
 
 ```text
+# provisio hosts: append to /etc/hosts, or see docs/dns.md for a resolver fix
 127.0.0.1  management.localhost
 127.0.0.1  login.localhost
 127.0.0.1  kv-demo.vault.localhost
 127.0.0.1  stdemo.blob.core.localhost
+127.0.0.1  stdemo.queue.core.localhost
+127.0.0.1  stdemo.table.core.localhost
 ```
 
 Hosts files have no wildcards, so every new vault or account needs its
-own line; the queue and table twins are only needed for Terraform.
+own line: re-run it after creating one.
 
 ## A public wildcard instead
 

@@ -34,7 +34,7 @@ and in CI instead of in production.
 | Microsoft.Authorization | Role definitions (read), role assignments (create, read, list, delete)                                                                          |
 | Microsoft.KeyVault      | Vaults (management plane); secrets with versions, soft delete, recover and purge (data plane, one hostname per vault, challenge authentication) |
 | Microsoft.Storage       | Storage accounts, keys and containers; a blob data plane with RBAC on every call, served by Azurite behind it; key, SAS and user delegation SAS |
-| Persistence             | Everything created through the API survives restarts and crashes: an encrypted journal in state/, no database to run                            |
+| Persistence             | Everything created through the API survives restarts and crashes: an encrypted journal in your data directory, no database to run               |
 | Operations              | One log line per request under the `x-ms-request-id` the client got back, text or JSON; secrets never logged                                    |
 
 Verified end to end with `az` 2.89, `@azure/identity`,
@@ -47,23 +47,23 @@ Python, Terraform 1.16 with the unmodified azurerm provider, and curl.
 go run ./cmd/provisio          # or: docker compose up -d  (see docs/docker.md)
 ```
 
-The server generates a private CA in `certs/` at first boot, keeps what you create in `state/`, and serves `https://management.localhost:8443` (ARM), `https://login.localhost:8443` (Entra), `https://{vault}.vault.localhost:8443` (Key Vault data
+The server generates a private CA in `~/.provisio/` at first boot, keeps what you create in your data directory (`~/.local/share/provisio` on Linux), and serves `https://management.localhost:8443` (ARM), `https://login.localhost:8443` (Entra), `https://{vault}.vault.localhost:8443` (Key Vault data
 plane) and `https://{account}.blob.core.localhost:8443` (blobs), plus
 IMDS on `http://127.0.0.1:8081`. Storage accounts need `azurite-blob` on
 your PATH (`npm install -g azurite`; the Docker image has it) and are
 otherwise off. Two things every client needs:
 
 1. **Hostnames** resolving to 127.0.0.1. Linux with systemd-resolved
-   does it already; WSL2 and macOS need a one-time resolver fix or one
-   `/etc/hosts` line per name — see [docs/dns.md](docs/dns.md).
-2. **The CA.** `certs/ca.pem`, passed per client (`curl --cacert`,
+   does it already; WSL2 and macOS need a one-time resolver fix or the
+   `/etc/hosts` lines `provisio hosts` prints — see [docs/dns.md](docs/dns.md).
+2. **The CA.** `~/.provisio/ca.pem`, passed per client (`curl --cacert`,
    `REQUESTS_CA_BUNDLE`, `NODE_EXTRA_CA_CERTS`, `SSL_CERT_FILE`).
 
 Then the demo with the CLI, in a config directory of its own so your
 real Azure login is untouched:
 
 ```bash
-export AZURE_CONFIG_DIR=$HOME/.azure-provisio REQUESTS_CA_BUNDLE=$PWD/certs/ca.pem
+export AZURE_CONFIG_DIR=$HOME/.azure-provisio REQUESTS_CA_BUNDLE=$HOME/.provisio/ca.pem
 az cloud set -n AzureCloud 2>/dev/null; az cloud unregister -n Provisio 2>/dev/null
 az cloud register -n Provisio --endpoint-resource-manager https://management.localhost:8443
 az cloud set -n Provisio
@@ -109,7 +109,7 @@ Provisio is faithful where clients look and deliberately simple
 elsewhere. The complete list is in
 [docs/divergences.md](docs/divergences.md); the ones you will meet first:
 
-- One process, one tenant, one subscription; what you create persists in `state/` across restarts, encrypted [docs/persistence.md](docs/persistence.md).
+- One process, one tenant, one subscription; what you create persists in your data directory across restarts, encrypted [docs/persistence.md](docs/persistence.md).
 - Clients must skip Entra instance discovery (`disableInstanceDiscovery`,
   `az config set core.instance_discovery=false`); the authority is not
   in Microsoft's instance metadata.

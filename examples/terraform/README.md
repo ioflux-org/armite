@@ -28,7 +28,7 @@ role assignments exist.
    so no system-wide install is needed:
 
    ```bash
-   export SSL_CERT_FILE=$PWD/certs/ca.pem   # from the repository root
+   export SSL_CERT_FILE=$HOME/.provisio/ca.pem
    ```
 
 4. **Terraform 1.5 or newer** (`terraform version`).

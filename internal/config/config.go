@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 )
 
@@ -45,9 +47,12 @@ type ManagedIdentity struct {
 }
 
 // State is where resources, role assignments and secrets persist across
-// restarts: a journal and a snapshot in Dir, sealed with Key. An empty
-// Dir keeps everything in memory. CompactAfterMB bounds the journal:
-// past it, the journal is folded into the snapshot; 0 never compacts.
+// restarts: a journal and a snapshot in Dir, sealed with Key. Dir is
+// DataDir by default; a relative path is resolved from the working
+// directory, which is how a project keeps its own data next to its own
+// files; empty keeps everything in memory. CompactAfterMB bounds the
+// journal: past it, the journal is folded into the snapshot; 0 never
+// compacts.
 // Key is a base64 32-byte AES key; empty means one is generated into the
 // certificate directory on first boot, next to the CA key.
 type State struct {
@@ -105,6 +110,52 @@ type Log struct {
 	Format string `yaml:"format"`
 }
 
+// Home is the directory Provisio keeps its identity in - the CA, the
+// leaf certificate, the signing key, the state key - and the optional
+// configuration file: PROVISIO_HOME, else ~/.provisio, like ~/.ssh or
+// ~/.aws. One per machine, so a server started from any directory is
+// the same server to every client that trusted its CA. The data lives
+// elsewhere, see DataDir.
+func Home() string {
+	if v := os.Getenv("PROVISIO_HOME"); v != "" {
+		return v
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ".provisio" // no home directory: the working directory
+	}
+	return filepath.Join(home, ".provisio")
+}
+
+// DataDir is where the state lives by default: the user's data
+// directory for the platform - $XDG_DATA_HOME or ~/.local/share on
+// Linux, ~/Library/Application Support on macOS, %LOCALAPPDATA% on
+// Windows - plus "provisio". Data grows (Azurite's blobs are in it) and
+// is disposable, which a dot directory of keys is not; deleting the
+// data directory starts over, with the same CA. When PROVISIO_HOME is
+// set explicitly, the data goes under it instead, so one variable gives
+// a container or a second instance a self-contained directory.
+func DataDir() string {
+	if v := os.Getenv("PROVISIO_HOME"); v != "" {
+		return filepath.Join(v, "state")
+	}
+	home, err := os.UserHomeDir()
+	switch {
+	case runtime.GOOS == "windows" && os.Getenv("LOCALAPPDATA") != "":
+		return filepath.Join(os.Getenv("LOCALAPPDATA"), "provisio")
+	case runtime.GOOS == "darwin" && err == nil:
+		return filepath.Join(home, "Library", "Application Support", "provisio")
+	case os.Getenv("XDG_DATA_HOME") != "":
+		return filepath.Join(os.Getenv("XDG_DATA_HOME"), "provisio")
+	case err == nil:
+		return filepath.Join(home, ".local", "share", "provisio")
+	}
+	return filepath.Join(Home(), "state")
+}
+
+// ConfigFile is the configuration file Home holds, when it exists.
+const ConfigFile = "provisio.yaml"
+
 func Default() Config {
 	config := Config{
 		TenantID:             "11111111-1111-1111-1111-111111111111",
@@ -128,7 +179,7 @@ func Default() Config {
 			ClientID: "55555555-5555-5555-5555-555555555555",
 			ObjectID: "66666666-6666-6666-6666-666666666666",
 		},
-		State:   State{Dir: "state", CompactAfterMB: 8},
+		State:   State{Dir: DataDir(), CompactAfterMB: 8},
 		Azurite: Azurite{Mode: "managed", Command: "azurite-blob", Port: 10000},
 		Log:     Log{Format: "text"},
 	}
@@ -248,7 +299,8 @@ func (c Config) AzuriteURL() string {
 // PROVISIO_IMDS_ADDR - the defaults bind the loopback interface, which
 // a container's published ports cannot reach, so the image sets both to
 // 0.0.0.0 - the state directory and key, PROVISIO_STATE_DIR and
-// PROVISIO_STATE_KEY, and the log format, PROVISIO_LOG_FORMAT. Hostnames
+// PROVISIO_STATE_KEY, and the log format, PROVISIO_LOG_FORMAT. The home
+// directory itself is PROVISIO_HOME, read by Home and DataDir. Hostnames
 // and the port clients use are unchanged.
 func FromEnv() Config {
 	cfg := Default()

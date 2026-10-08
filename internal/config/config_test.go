@@ -2,7 +2,10 @@ package config
 
 import (
 	"net"
+	"os"
+	"path/filepath"
 	"regexp"
+	"runtime"
 	"testing"
 )
 
@@ -169,6 +172,32 @@ func TestDefaultSeedsBootAssignments(t *testing.T) {
 		if !guidRe.MatchString(a.RoleDefinitionID) {
 			t.Errorf("seed role %q is not a bare lowercase GUID", a.RoleDefinitionID)
 		}
+	}
+}
+
+func TestHomeAndDataDir(t *testing.T) {
+	t.Setenv("PROVISIO_HOME", "")
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Skip("no home directory here")
+	}
+	if got := Home(); got != filepath.Join(home, ".provisio") {
+		t.Errorf("Home() = %q, want ~/.provisio", got)
+	}
+	if runtime.GOOS == "linux" {
+		t.Setenv("XDG_DATA_HOME", "")
+		if got := Default().State.Dir; got != filepath.Join(home, ".local", "share", "provisio") {
+			t.Errorf("the data must default to ~/.local/share/provisio, not the home: %q", got)
+		}
+		t.Setenv("XDG_DATA_HOME", "/xdg")
+		if got := DataDir(); got != "/xdg/provisio" {
+			t.Errorf("XDG_DATA_HOME must be honoured: %q", got)
+		}
+	}
+	t.Setenv("PROVISIO_HOME", "/data")
+	if Home() != "/data" || Default().State.Dir != filepath.Join("/data", "state") {
+		t.Errorf("an explicit PROVISIO_HOME must be self-contained: %q %q", Home(),
+			Default().State.Dir)
 	}
 }
 

@@ -126,6 +126,38 @@ func TestTornTailIsCutOff(t *testing.T) {
 	}
 }
 
+func TestReadOnlyReadsBesideAWriter(t *testing.T) {
+	dir := t.TempDir()
+	l, s := open(t, dir, testKey, 0)
+	put(t, l, s, "a", `"1"`)
+	path := filepath.Join(dir, journalName)
+	raw, _ := os.ReadFile(path)
+	// A reader may see an append in flight: half a frame at the end.
+	if err := os.WriteFile(path, append(raw, raw[:10]...), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	ro, err := OpenReadOnly(dir, testKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := newMem()
+	ro.Attach("t", seen)
+	if err := ro.Replay(); err != nil || len(seen.m) != 1 || seen.m["a"] != `"1"` {
+		t.Errorf("read-only replay: %v %v, want a alone and no error", err, seen.m)
+	}
+	if info, _ := os.Stat(path); info.Size() != int64(len(raw)+10) {
+		t.Errorf("a read-only log must not cut the journal: %d bytes, want %d", info.Size(), len(raw)+10)
+	}
+	if err := ro.Append(Record{Store: "t", Key: "b"}); err == nil {
+		t.Error("Append on a read-only log must fail")
+	}
+	if _, err := OpenReadOnly(filepath.Join(dir, "nothing"), testKey); err != nil {
+		t.Errorf("a missing directory is an empty state, not an error: %v", err)
+	}
+	l.Close()
+}
+
 func TestCorruptionAndWrongKeyAreErrors(t *testing.T) {
 	dir := t.TempDir()
 	l, s := open(t, dir, testKey, 0)

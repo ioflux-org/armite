@@ -6,14 +6,14 @@ services:
       - "127.0.0.1:8443:8443"
       - "127.0.0.1:8081:8081"
     volumes:
-      - certs:/app/certs
-      - state:/app/state
+      - data:/data
 
-# The CA is generated inside the certs volume at first boot. Read it out with:
-#   docker compose cp provisio:/app/certs/ca.pem ./ca.pem
-# The state volume holds everything created through the API - Azurite's
-# blobs included - encrypted with a key in the certs volume (the blobs
-# are not): remove both to start over (docker compose down -v), never one.
+# The volume is Provisio's home directory: the CA and keys generated at
+# first boot, and state/ with everything created through the API,
+# Azurite's blobs included. Read the CA out with:
+#   docker compose cp provisio:/data/ca.pem ./ca.pem
+# Start over but keep the CA (clients stay trusted): stop it, then
+#   docker run --rm -v provisio_data:/data alpine rm -rf /data/state
+# Start over completely: docker compose down -v
 volumes:
-  certs:
-  state:
+  data:

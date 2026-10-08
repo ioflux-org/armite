@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/ioflux-org/provisio/internal/azurite"
@@ -27,14 +28,17 @@ import (
 	"github.com/ioflux-org/provisio/internal/store"
 )
 
-// configPath is PROVISIO_CONFIG, else ./provisio.yaml when it exists,
-// else "" (defaults only): zero files to run, one file to tweak.
+// configPath is PROVISIO_CONFIG, else ./provisio.yaml when it exists
+// (a project's own, like a .env), else the home directory's when it
+// exists, else "" (defaults only): zero files to run, one file to tweak.
 func configPath() string {
 	if p := os.Getenv("PROVISIO_CONFIG"); p != "" {
 		return p
 	}
-	if _, err := os.Stat("provisio.yaml"); err == nil {
-		return "provisio.yaml"
+	for _, p := range []string{config.ConfigFile, filepath.Join(config.Home(), config.ConfigFile)} {
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
 	}
 	return ""
 }
@@ -59,25 +63,26 @@ func main() {
 	if path != "" {
 		log.Printf("Loaded configuration from %s", path)
 	}
-	// certDir holds the CA, the leaf certificate and the signing key; in
-	// the container it is the mounted volume clients read ca.pem from.
-	certDir := os.Getenv("PROVISIO_CERT_DIR")
-	if certDir == "" {
-		certDir = "certs"
+	// The home directory holds the identity - CA, leaf certificate,
+	// signing key, state key - private to the user. The state lives in
+	// the data directory, cfg.State.Dir, which is disposable.
+	home := config.Home()
+	if err := os.MkdirAll(home, 0o700); err != nil {
+		log.Fatal(err)
 	}
 
-	caCert, caKey, err := pki.EnsureCA(certDir)
+	caCert, caKey, err := pki.EnsureCA(home)
 	if err != nil {
 		log.Fatal(err)
 	}
 	hosts := []string{cfg.ARMHost, cfg.LoginHost, "*." + cfg.VaultHost, "*." + cfg.BlobHost,
 		"*." + cfg.QueueHost(), "*." + cfg.TableHost(), "localhost", "127.0.0.1", "::1"}
-	certFile, keyFile, err := pki.IssueLeaf(caCert, caKey, hosts, certDir)
+	certFile, keyFile, err := pki.IssueLeaf(caCert, caKey, hosts, home)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	signingKey, err := pki.EnsureSigningKey(certDir)
+	signingKey, err := pki.EnsureSigningKey(home)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -89,7 +94,7 @@ func main() {
 	// process be killed at any moment.
 	// The state key is loaded even when nothing persists: it is also the
 	// secret storage user delegation keys are derived from.
-	stateKey, err := state.LoadKey(certDir, cfg.State.Key)
+	stateKey, err := state.LoadKey(home, cfg.State.Key)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -181,7 +186,7 @@ func main() {
 	go func() {
 		log.Printf("Serving %s (listening on %s)", cfg.ARMBaseURL(), cfg.ListenerAddr)
 		log.Printf("Trust the CA: curl --cacert %s %s/",
-			filepath.Join(certDir, pki.CACertFile), cfg.ARMBaseURL())
+			filepath.Join(home, pki.CACertFile), cfg.ARMBaseURL())
 		errc <- server.ListenAndServeTLS(certFile, keyFile)
 	}()
 	go func() {
@@ -193,19 +198,30 @@ func main() {
 }
 
 // runCommand serves the subcommands: "config init [file]" writes a
-// commented provisio.yaml of the defaults, "config show [--secrets]"
-// prints the effective configuration, "config check" only validates
-// (the Load above already did, so reaching here means it passed).
+// commented provisio.yaml of the defaults into the home directory,
+// "config show [--secrets]" prints the effective configuration, "config
+// check" only validates (the Load above already did, so reaching here
+// means it passed), "hosts" prints the /etc/hosts lines for every
+// hostname the server answers to.
 func runCommand(cfg config.Config, path string, args []string) {
+	if args[0] == "hosts" {
+		if err := printHosts(cfg); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
 	if args[0] == "config" && len(args) > 1 {
 		switch args[1] {
 		case "init":
-			target := "provisio.yaml"
+			target := filepath.Join(config.Home(), config.ConfigFile)
 			if len(args) > 2 {
 				target = args[2]
 			}
 			body, err := config.Template()
 			if err != nil {
+				log.Fatal(err)
+			}
+			if err := os.MkdirAll(filepath.Dir(target), 0o700); err != nil {
 				log.Fatal(err)
 			}
 			f, err := os.OpenFile(target, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
@@ -227,6 +243,8 @@ func runCommand(cfg config.Config, path string, args []string) {
 			if err != nil {
 				log.Fatal(err)
 			}
+			fmt.Printf("# home: %s\n# data: %s\n# file: %s\n", config.Home(),
+				cmp.Or(cfg.State.Dir, "none (in memory)"), cmp.Or(path, "none (defaults)"))
 			os.Stdout.Write(body)
 			return
 		case "check":
@@ -234,6 +252,45 @@ func runCommand(cfg config.Config, path string, args []string) {
 			return
 		}
 	}
-	fmt.Fprintf(os.Stderr, "usage: provisio [config init [file] | config show [--secrets] | config check]\n")
+	fmt.Fprintf(os.Stderr, "usage: provisio [config init [file] | config show [--secrets] | "+
+		"config check | hosts]\n")
 	os.Exit(2)
+}
+
+// printHosts prints one /etc/hosts line per hostname: the fixed ones,
+// then one per vault and per storage account in the state (the queue
+// and table twins included, for Terraform), read without touching the
+// files so it works beside a running server. Nothing else goes to
+// stdout, so the output can be appended to the hosts file as it is.
+func printHosts(cfg config.Config) error {
+	names := []string{cfg.ARMHost, cfg.LoginHost}
+	if _, err := os.Stat(cfg.State.Dir); cfg.State.Dir != "" && err == nil {
+		key, err := state.LoadKey(config.Home(), cfg.State.Key)
+		if err != nil {
+			return err
+		}
+		journal, err := state.OpenReadOnly(cfg.State.Dir, key)
+		if err != nil {
+			return err
+		}
+		resources := store.New(journal)
+		if err := journal.Replay(); err != nil {
+			return err
+		}
+		vaults, _ := resources.List("/", "Microsoft.KeyVault/vaults")
+		for _, v := range vaults {
+			names = append(names, strings.ToLower(v.Name)+"."+cfg.VaultHost)
+		}
+		accounts, _ := resources.List("/", "Microsoft.Storage/storageAccounts")
+		for _, a := range accounts {
+			name := strings.ToLower(a.Name)
+			names = append(names, name+"."+cfg.BlobHost, name+"."+cfg.QueueHost(),
+				name+"."+cfg.TableHost())
+		}
+	}
+	fmt.Println("# provisio hosts: append to /etc/hosts, or see docs/dns.md for a resolver fix")
+	for _, n := range names {
+		fmt.Printf("127.0.0.1  %s\n", n)
+	}
+	return nil
 }
