@@ -80,9 +80,10 @@ table` fails because the table wants principal names; use `-o json`
 - The resource envelope carries `id`, `name`, `type`, `location`, `tags`
   and `properties`; no `systemData`, `etag`, `sku`, `identity`, `plan`,
   `zones` or `managedBy`. _simplification_
-- Resource groups have no PATCH (az updates with GET and PUT; Terraform
-  tag changes on a group would PATCH). Group delete cascades
-  synchronously. _deferred_
+- Resource group PATCH replaces the tags when the body carries them
+  and ignores everything else (az updates with GET and PUT; Terraform
+  PATCHes a tag change). Group delete cascades synchronously.
+  _simplification_
 - The provider catalogue lists Provisio's namespaces as "Registered"
   with the types and api-versions it serves; registration is not
   modelled and locations are nominal. _simplification_

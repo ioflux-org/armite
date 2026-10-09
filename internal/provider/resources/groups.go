@@ -35,20 +35,23 @@ func validGroupName(name string) bool {
 	return groupNameRe.MatchString(name) && !strings.HasSuffix(name, ".")
 }
 
-// groupBody is what a client sends on PUT. Unknown fields (properties,
-// managedBy) are ignored, as real ARM ignores what it does not model.
+// groupBody is what a client sends on PUT or PATCH. Unknown fields
+// (properties, managedBy) are ignored, as real ARM ignores what it does
+// not model. Tags is a pointer so a PATCH can tell "no tags field" (keep
+// them) from "tags": {} (remove them all).
 type groupBody struct {
-	Location string            `json:"location"`
-	Tags     map[string]string `json:"tags"`
+	Location string             `json:"location"`
+	Tags     *map[string]string `json:"tags"`
 }
 
-// serveGroup handles one resource group: PUT, GET, HEAD, DELETE. PATCH
-// (tag updates) is deferred; POST never arrives - DeriveAction rejects
-// it on an instance.
+// serveGroup handles one resource group: PUT, PATCH, GET, HEAD, DELETE.
+// POST never arrives - DeriveAction rejects it on an instance.
 func (p *Provider) serveGroup(w http.ResponseWriter, r *http.Request, id arm.ResourceID) {
 	switch r.Method {
 	case http.MethodPut:
 		p.putGroup(w, r, id)
+	case http.MethodPatch:
+		p.patchGroup(w, r, id)
 	case http.MethodGet:
 		p.getGroup(w, id)
 	case http.MethodHead:
@@ -109,8 +112,10 @@ func (p *Provider) putGroup(w http.ResponseWriter, r *http.Request, id arm.Resou
 		Name:       name,
 		Type:       groupType,
 		Location:   body.Location,
-		Tags:       body.Tags,
 		Properties: json.RawMessage(provisioned),
+	}
+	if body.Tags != nil {
+		res.Tags = *body.Tags
 	}
 
 	existing, err := p.store.Get(res.ID)
@@ -140,6 +145,34 @@ func (p *Provider) putGroup(w http.ResponseWriter, r *http.Request, id arm.Resou
 		status = http.StatusCreated
 	}
 	gateway.WriteJSON(w, status, res)
+}
+
+// patchGroup updates a group in place: a field in the body replaces the
+// group's, a field absent from the body is kept - ARM's rule for
+// resource groups, and what Terraform does for a tag change (PATCH with
+// the full tag set, nothing else). The location cannot change; one sent
+// in the body is ignored. The group must exist: PATCH never creates.
+func (p *Provider) patchGroup(w http.ResponseWriter, r *http.Request, id arm.ResourceID) {
+	res, err := p.store.Get(id.String())
+	if err != nil {
+		groupLookupError(w, id, err)
+		return
+	}
+	var body groupBody
+	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBodyBytes))
+	if err := dec.Decode(&body); err != nil {
+		azerr.WriteError(w, http.StatusBadRequest, azerr.CodeInvalidRequestContent,
+			"The request content was invalid and could not be deserialized: "+err.Error())
+		return
+	}
+	if body.Tags != nil {
+		res.Tags = *body.Tags
+	}
+	if _, err := p.store.Put(res); err != nil {
+		internalError(w, err)
+		return
+	}
+	gateway.WriteJSON(w, http.StatusOK, res)
 }
 
 func (p *Provider) getGroup(w http.ResponseWriter, id arm.ResourceID) {

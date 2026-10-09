@@ -214,13 +214,51 @@ func TestListEmptyIsArray(t *testing.T) {
 	}
 }
 
+// PATCH is what Terraform sends for a tag change: the tag set replaces
+// the old one, everything else is kept, and the group must exist.
+func TestPatchGroupTags(t *testing.T) {
+	p := newProvider()
+	rg := sub + "/resourceGroups/dev"
+	serve(t, p, http.MethodPut, rg, `{"location":"eastus","tags":{"env":"dev","team":"core"}}`)
+
+	rec := serve(t, p, http.MethodPatch, rg, `{"tags":{"env":"prod"}}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("patch: %d %s", rec.Code, rec.Body.String())
+	}
+	got := decodeGroup(t, rec)
+	if len(got.Tags) != 1 || got.Tags["env"] != "prod" || got.Location != "eastus" ||
+		got.Name != "dev" {
+		t.Errorf("after patch: tags=%v location=%q name=%q, want env=prod alone, eastus, dev",
+			got.Tags, got.Location, got.Name)
+	}
+	// No tags field: the tags stay. A location in the body is ignored.
+	rec = serve(t, p, http.MethodPatch, rg, `{"location":"westus"}`)
+	if got = decodeGroup(t, rec); rec.Code != http.StatusOK || got.Tags["env"] != "prod" ||
+		got.Location != "eastus" {
+		t.Errorf("patch without tags: %d tags=%v location=%q", rec.Code, got.Tags, got.Location)
+	}
+	// "tags": {} removes them all, and GET agrees.
+	serve(t, p, http.MethodPatch, rg, `{"tags":{}}`)
+	if got = decodeGroup(t, serve(t, p, http.MethodGet, rg, "")); len(got.Tags) != 0 {
+		t.Errorf("empty tags must clear: %v", got.Tags)
+	}
+	rec = serve(t, p, http.MethodPatch, sub+"/resourceGroups/nope", `{"tags":{}}`)
+	if rec.Code != http.StatusNotFound || code(rec) != azerr.CodeResourceGroupNotFound {
+		t.Errorf("patch of a missing group: %d %s, want 404 ResourceGroupNotFound", rec.Code, code(rec))
+	}
+	rec = serve(t, p, http.MethodPatch, rg, `{"tags":`)
+	if rec.Code != http.StatusBadRequest || code(rec) != azerr.CodeInvalidRequestContent {
+		t.Errorf("malformed patch: %d %s, want 400 InvalidRequestContent", rec.Code, code(rec))
+	}
+}
+
 func TestMethodsNotSupported(t *testing.T) {
 	p := newProvider()
 	rg := sub + "/resourceGroups/dev"
 	serve(t, p, http.MethodPut, rg, `{"location":"eastus"}`)
 
 	tests := []struct{ name, method, path string }{
-		{"patch is deferred", http.MethodPatch, rg},
+		{"patch on the collection", http.MethodPatch, sub + "/resourceGroups"},
 		{"post on the collection", http.MethodPost, sub + "/resourceGroups"},
 	}
 	for _, tt := range tests {

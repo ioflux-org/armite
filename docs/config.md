@@ -97,6 +97,54 @@ The first entry keeps Owner, because the list replaces the defaults. If
 you change a principal's `object_id`, update `role_assignments` too: a
 seed naming an unknown principal is refused at boot.
 
+## Adding a principal
+
+The configuration file is the directory: every identity that can log in
+is declared in it, and a new one is an edit and a restart. There are
+two kinds.
+
+A **service principal** is an entry in `clients` — the `id` it logs in
+with (the client id), its `secret`, and the `object_id` RBAC knows it
+by (what `Caller: oid=` in a 403 and `principalId` in a role assignment
+show). Both ids are GUIDs of your choosing (`uuidgen`). The list
+replaces the default, so keep the built-in entry; grant the newcomer
+roles with `role_assignments` here, or later with `az role assignment
+create --assignee-object-id …`:
+
+```yaml
+clients:
+  - id: 33333333-3333-3333-3333-333333333333 # the built-in one
+    secret: provisio-secret
+    object_id: 44444444-4444-4444-4444-444444444444
+  - id: 7c0d9a2e-5f1b-4c6d-8e3f-1a2b3c4d5e6f
+    secret: ci-secret
+    object_id: 9e8d7c6b-5a4f-4e3d-2c1b-0a9f8e7d6c5b
+role_assignments:
+  - principal_id: 44444444-4444-4444-4444-444444444444
+    role_definition_id: 8e3af657-a8ff-443c-a75c-2fe8c4bcb635 # Owner, the default kept
+    scope: /subscriptions/22222222-2222-2222-2222-222222222222
+  - principal_id: 9e8d7c6b-5a4f-4e3d-2c1b-0a9f8e7d6c5b
+    role_definition_id: acdd72a7-3385-48ef-bd42-f606fba81ae7 # Reader
+    scope: /subscriptions/22222222-2222-2222-2222-222222222222
+```
+
+It logs in as any service principal does: `az login --service-principal
+-u <id> -p <secret> --tenant <tenant_id>`; `AZURE_CLIENT_ID`,
+`AZURE_CLIENT_SECRET` and `AZURE_TENANT_ID` for the SDKs; `client_id`
+and `client_secret` in Terraform's provider block.
+
+The **managed identity** is the one principal without a secret:
+`managed_identity` names it, and anything that can reach IMDS
+(`AZURE_POD_IDENTITY_AUTHORITY_HOST=http://127.0.0.1:8081`) gets its
+tokens, as a VM or a pod would in Azure. There is exactly one.
+
+Not in the directory: users and groups, and the Graph API that creates
+principals at runtime — `az ad sp create-for-rbac` fails with _The
+api-version query parameter (?api-version=) is required for all
+requests_ (az sends the Graph call to the ARM host, which does not
+serve it), and `az role assignment create` needs `--assignee-object-id`
+rather than a name to look up.
+
 ## Logs and request ids
 
 Every response carries an `x-ms-request-id`, as Azure's do, and every
