@@ -26,10 +26,12 @@ jobs:
   smoke:
     needs: gate
     runs-on: ubuntu-latest
-    env:
-      CI_DIR: ${{ runner.temp }}/armite-ci
     steps:
       - uses: actions/checkout@v4
+      # The runner context is not available to a job-level env block;
+      # a step can read $RUNNER_TEMP and export the directory for the rest.
+      - name: Where the server lives
+        run: echo "CI_DIR=$RUNNER_TEMP/armite-ci" >> "$GITHUB_ENV"
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
