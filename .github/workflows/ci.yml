@@ -1,0 +1,87 @@
+# Three jobs. gate: format, vet, tests. smoke: a built server on the
+# runner, driven by az, the Azure SDK for JavaScript and Terraform -
+# the same scripts as ./scripts/ci/all.sh locally. docker: the image
+# builds, boots and answers. The runner's resolver answers *.localhost
+# already (systemd-resolved); the hosts step makes it explicit.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: gofmt
+        run: test -z "$(gofmt -l ./cmd ./internal)" || { gofmt -l ./cmd ./internal; exit 1; }
+      - run: go vet ./...
+      - run: go test -race -count=1 ./...
+
+  smoke:
+    needs: gate
+    runs-on: ubuntu-latest
+    env:
+      CI_DIR: ${{ runner.temp }}/provisio-ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: scripts/sdk-smoke/package-lock.json
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.16.4"
+          terraform_wrapper: false
+      - name: Azurite, the blob store behind storage accounts
+        run: npm install -g azurite@3.37.0
+      - name: Hostnames
+        run: ./scripts/ci/hosts.sh | sudo tee -a /etc/hosts && getent hosts kv-demo.vault.localhost
+      - name: Start the server
+        run: ./scripts/ci/server.sh start
+      - name: az
+        run: ./scripts/ci/az-smoke.sh
+      - name: Fresh state, same CA
+        run: ./scripts/ci/server.sh reset
+      - name: Azure SDK for JavaScript
+        run: ./scripts/ci/node-smoke.sh
+      - name: Fresh state, same CA
+        run: ./scripts/ci/server.sh reset
+      - name: Terraform
+        run: ./scripts/ci/terraform-smoke.sh
+      - name: Stop the server
+        if: always()
+        run: ./scripts/ci/server.sh stop
+      - name: Server log
+        if: failure()
+        run: tail -60 "$CI_DIR/server.log"
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and boot
+        run: |
+          docker compose up -d --build
+          for i in $(seq 1 60); do
+            docker compose logs 2>/dev/null | grep -q 'Serving https' && break; sleep 1
+          done
+          docker compose logs
+      - name: Answers, with Azurite inside and the hosts lines
+        run: |
+          docker compose cp provisio:/data/ca.pem ./ca.pem
+          curl -sS --fail --cacert ./ca.pem --resolve management.localhost:8443:127.0.0.1 \
+            'https://management.localhost:8443/metadata/endpoints?api-version=2022-09-01' | head -c 200; echo
+          docker compose logs | grep -q 'azurite: serving' || { echo "no Azurite in the image"; exit 1; }
+          docker compose exec provisio /app/provisio hosts
+      - if: always()
+        run: docker compose down -v

@@ -39,7 +39,9 @@ and in CI instead of in production.
 
 Verified end to end with `az` 2.89, `@azure/identity`,
 `@azure/keyvault-secrets` and `@azure/storage-blob`, `azure-identity` for
-Python, Terraform 1.16 with the unmodified azurerm provider, and curl.
+Python, Terraform 1.16 with the unmodified azurerm provider, and curl —
+and on every push, by CI (`scripts/ci/`, the same scripts run locally
+with `./scripts/ci/all.sh`).
 
 ## Quickstart
 

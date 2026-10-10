@@ -57,8 +57,8 @@ terraform apply
 #    container (management actions) and cannot upload the blob (a data
 #    action) until Storage Blob Data Contributor is granted.
 terraform apply -var grant_blob_contributor=false
-#   ... Error: ... hello.txt ... 403 ... AuthorizationPermissionMismatch
-#   ... Action: 'Microsoft.Storage/storageAccounts/blobServices/containers/blobs/write'
+#   Error: checking for existing Blob "hello.txt" ... unexpected status 403 (403 Forbidden)
+#   (the provider's first call is a HEAD, which carries no error body)
 terraform apply
 #   azurerm_storage_blob.hello: Creation complete
 #   Outputs: blob_url = "https://stdemo.blob.core.localhost:8443/demo/hello.txt"

@@ -42,6 +42,13 @@ code and the tests, without a conversation.
    Agreement below (once per contributor, on your first PR).
 4. Expect review comments to ask "why" as often as "what"; answer in the
    code comments where the next reader will look.
+5. CI (`.github/workflows/ci.yml`) runs the gate - `gofmt`, `go vet`,
+   `go test -race` - then a built server driven by az, the Azure SDK for
+   JavaScript and Terraform, and the Docker image. Run the same before
+   pushing with `./scripts/ci/all.sh` (needs go, az, node, terraform
+   and `azurite-blob` on PATH, port 8443 free, and the hostnames of
+   `./scripts/ci/hosts.sh` resolving); about six minutes, most of it
+   the Terraform provider's pollers.
 
 ## Developer Certificate of Origin
 
@@ -126,4 +133,3 @@ Provisio mints tokens and evaluates authorization, so a bug in either
 matters even though it only ever runs locally. Please report security
 issues privately to the Maintainer (contact in the repository profile)
 rather than in a public issue, and allow a fix before disclosure.
-
