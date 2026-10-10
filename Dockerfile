@@ -36,6 +36,7 @@ RUN mkdir -p /data && chown node:node /data
 USER node
 VOLUME /data
 # Published ports cannot reach the loopback interface: bind them all.
-ENV ARMITE_HOME=/data ARMITE_LISTEN_ADDR=0.0.0.0:8443 ARMITE_IMDS_ADDR=0.0.0.0:8081
+ENV ARMITE_HOME=/data ARMITE_LISTEN_ADDR=0.0.0.0:8443 ARMITE_IMDS_ADDR=0.0.0.0:8081 \
+    ARMITE_CONTAINER=1
 EXPOSE 8443 8081
 ENTRYPOINT ["/app/armite"]

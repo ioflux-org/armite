@@ -111,6 +111,7 @@ Managed-identity clients set `AZURE_POD_IDENTITY_AUTHORITY_HOST=http://127.0.0.1
 | `ARMITE_STATE_KEY`   | unset (generated into the cert dir) | unset                          |
 | `ARMITE_CONFIG`      | unset (`./armite.yaml` if present)  | unset; mount a file and set it |
 | `ARMITE_LOG_FORMAT`  | `text`                              | unset; `json` for a collector  |
+| `ARMITE_CONTAINER`   | unset                               | `1`: hints say `docker cp`     |
 
 The image binds all interfaces because Docker's published ports cannot
 reach a container's loopback interface; publish on `127.0.0.1` as above

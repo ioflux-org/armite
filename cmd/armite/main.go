@@ -206,19 +206,38 @@ func main() {
 
 	// Each server blocks its own goroutine; the first one to fail stops the
 	// process. The buffer lets the second sender finish without a receiver.
+	log.Printf("Serving %s (listening on %s); IMDS at %s (listening on %s)",
+		cfg.ARMBaseURL(), cfg.ListenerAddr, cfg.IMDSURL(), cfg.IMDSAddr)
+	for _, line := range nextSteps(cfg, home) {
+		log.Print(line)
+	}
 	errc := make(chan error, 2)
-	go func() {
-		log.Printf("Serving %s (listening on %s)", cfg.ARMBaseURL(), cfg.ListenerAddr)
-		log.Printf("Trust the CA: curl --cacert %s %s/",
-			filepath.Join(home, pki.CACertFile), cfg.ARMBaseURL())
-		errc <- server.ListenAndServeTLS(certFile, keyFile)
-	}()
-	go func() {
-		log.Printf("Serving IMDS (listening on %s; SDKs: AZURE_POD_IDENTITY_AUTHORITY_HOST=%s)",
-			cfg.IMDSAddr, cfg.IMDSURL())
-		errc <- imds.ListenAndServe()
-	}()
+	go func() { errc <- server.ListenAndServeTLS(certFile, keyFile) }()
+	go func() { errc <- imds.ListenAndServe() }()
 	log.Fatal(<-errc)
+}
+
+// nextSteps is what the boot log owes a first run: the three things
+// every client needs, phrased for where the server is. The Docker image
+// sets ARMITE_CONTAINER, and there the CA has to be copied out before
+// anything can trust it.
+func nextSteps(cfg config.Config, home string) []string {
+	ca := filepath.Join(home, pki.CACertFile)
+	trust := "Trust the CA " + ca + ": curl --cacert, REQUESTS_CA_BUNDLE (az), " +
+		"NODE_EXTRA_CA_CERTS, SSL_CERT_FILE (Terraform)"
+	if os.Getenv("ARMITE_CONTAINER") != "" {
+		trust = "Trust the CA: docker cp <container>:" + ca + " ./ca.pem, then pass ./ca.pem as " +
+			"--cacert, REQUESTS_CA_BUNDLE (az), NODE_EXTRA_CA_CERTS or SSL_CERT_FILE (Terraform); " +
+			"publish 8081 too for managed-identity clients"
+	}
+	return []string{
+		"Next: 1. " + cfg.ARMHost + ", " + cfg.LoginHost + ", *." + cfg.VaultHost + " and *." +
+			cfg.BlobHost + " must resolve to this machine - `armite hosts` prints the " +
+			"/etc/hosts lines; Linux with systemd-resolved needs nothing (see docs/dns.md)",
+		"      2. " + trust,
+		"      3. az cloud register -n Armite --endpoint-resource-manager " + cfg.ARMBaseURL() +
+			" - the demo and the rest: https://armite.ioflux.org/getting-started",
+	}
 }
 
 // runCommand serves the subcommands: "config init [file]" writes a
