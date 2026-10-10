@@ -5,7 +5,7 @@
   </picture>
 </h1>
 
-<p align="center"><a href="https://ioflux-org.github.io/armite/">Documentation</a></p>
+<p align="center"><a href="https://armite.ioflux.org/">Documentation</a></p>
 
 A local Azure emulator with a real identity plane and real RBAC. Your
 application, the Azure CLI, the Azure SDKs and Terraform talk to
@@ -53,8 +53,15 @@ with `./scripts/ci/all.sh`).
 ## Quickstart
 
 ```bash
-go run ./cmd/armite          # or: docker compose up -d  (see docs/docker.md)
+docker run -d --name armite -p 127.0.0.1:8443:8443 -p 127.0.0.1:8081:8081 \
+  -v armite:/data ghcr.io/ioflux-org/armite          # the image, Azurite inside
+go install github.com/ioflux-org/armite/cmd/armite@latest && armite   # or the binary
 ```
+
+Binaries for Linux, macOS and Windows are on the
+[releases page](https://github.com/ioflux-org/armite/releases) with
+checksums; from a clone, `go run ./cmd/armite`. `armite version` says
+which you have.
 
 The server generates a private CA in `~/.armite/` at first boot, keeps what you create in your data directory (`~/.local/share/armite` on Linux), and serves `https://management.localhost:8443` (ARM), `https://login.localhost:8443` (Entra), `https://{vault}.vault.localhost:8443` (Key Vault data
 plane) and `https://{account}.blob.core.localhost:8443` (blobs), plus
@@ -101,12 +108,12 @@ creates a container and cannot upload a blob — is in
 Armite is one tenant with one subscription and two principals, all
 fixed and documented, so nothing needs registering:
 
-|                                                    | value                                                                                                                  |
-| -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| Tenant                                             | `11111111-1111-1111-1111-111111111111`                                                                                 |
-| Subscription                                       | `22222222-2222-2222-2222-222222222222`                                                                                 |
+|                                                    | value                                                                                                                |
+| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Tenant                                             | `11111111-1111-1111-1111-111111111111`                                                                               |
+| Subscription                                       | `22222222-2222-2222-2222-222222222222`                                                                               |
 | Service principal (Owner of the subscription)      | client `33333333-3333-3333-3333-333333333333`, secret `armite-secret`, object `44444444-4444-4444-4444-444444444444` |
-| Managed identity (Contributor of the subscription) | client `55555555-5555-5555-5555-555555555555`, object `66666666-6666-6666-6666-666666666666`, via IMDS                 |
+| Managed identity (Contributor of the subscription) | client `55555555-5555-5555-5555-555555555555`, object `66666666-6666-6666-6666-666666666666`, via IMDS               |
 
 The managed identity is the one your production code path uses:
 `DefaultAzureCredential` with `AZURE_POD_IDENTITY_AUTHORITY_HOST=http://127.0.0.1:8081`

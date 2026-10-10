@@ -1,12 +1,17 @@
 # syntax=docker/dockerfile:1
 
 # Build: a static binary, so the runtime image needs no libc for it.
-FROM golang:1.26-alpine AS build
+# The build stage runs on the builder's own platform and cross-compiles
+# for the target (Go needs no emulation for that); a multi-arch image is
+# one `docker buildx build --platform linux/amd64,linux/arm64`.
+FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS build
+ARG TARGETOS TARGETARCH VERSION=dev
 WORKDIR /src
 COPY go.mod go.su[m] ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/armite ./cmd/armite
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath \
+    -ldflags="-s -w -X main.version=$VERSION" -o /out/armite ./cmd/armite
 
 # Run: Node, because storage accounts are served by Azurite, a Node
 # program Armite starts and restarts itself; non-root (the image's

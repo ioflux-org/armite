@@ -1,12 +1,23 @@
 # Getting started
 
-Armite is a single Go program. From a clone of the repository:
+Armite is a single Go program, with Azurite beside it for storage
+accounts. Three ways to run it:
 
 ```bash
-git clone https://github.com/ioflux-org/armite
-cd armite
-go run ./cmd/armite        # or: docker compose up -d
+# The image: Azurite inside, nothing to install (see Running in Docker)
+docker run -d --name armite -p 127.0.0.1:8443:8443 -p 127.0.0.1:8081:8081 \
+  -v armite:/data ghcr.io/ioflux-org/armite
+
+# A binary: Go 1.26, or the archive for your platform from the releases page
+go install github.com/ioflux-org/armite/cmd/armite@latest && armite
+
+# A clone
+git clone https://github.com/ioflux-org/armite && cd armite && go run ./cmd/armite
 ```
+
+Release archives for Linux, macOS and Windows, with checksums, are at
+[github.com/ioflux-org/armite/releases](https://github.com/ioflux-org/armite/releases);
+`armite version` prints the version you have.
 
 The server generates a private CA in `~/.armite/` at first boot, keeps
 what you create in your data directory (`~/.local/share/armite` on
@@ -63,12 +74,12 @@ tool is in [Client setup](./clients.md).
 Armite is one tenant with one subscription and two principals, all
 fixed and documented, so nothing needs registering:
 
-|                                                    | value                                                                                                                  |
-| -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| Tenant                                             | `11111111-1111-1111-1111-111111111111`                                                                                 |
-| Subscription                                       | `22222222-2222-2222-2222-222222222222`                                                                                 |
+|                                                    | value                                                                                                                |
+| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Tenant                                             | `11111111-1111-1111-1111-111111111111`                                                                               |
+| Subscription                                       | `22222222-2222-2222-2222-222222222222`                                                                               |
 | Service principal (Owner of the subscription)      | client `33333333-3333-3333-3333-333333333333`, secret `armite-secret`, object `44444444-4444-4444-4444-444444444444` |
-| Managed identity (Contributor of the subscription) | client `55555555-5555-5555-5555-555555555555`, object `66666666-6666-6666-6666-666666666666`, via IMDS                 |
+| Managed identity (Contributor of the subscription) | client `55555555-5555-5555-5555-555555555555`, object `66666666-6666-6666-6666-666666666666`, via IMDS               |
 
 The managed identity is the one your production code path uses:
 `DefaultAzureCredential` with `AZURE_POD_IDENTITY_AUTHORITY_HOST=http://127.0.0.1:8081`

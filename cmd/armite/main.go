@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -43,7 +44,30 @@ func configPath() string {
 	return ""
 }
 
+// version is set by the release build (-ldflags "-X main.version=v1.2.3").
+// A "go install …@v1.2.3" build has no ldflags but records the module
+// version in the binary, which buildVersion falls back to; a plain go
+// build from a clone prints "dev".
+var version = "dev"
+
+func buildVersion() string {
+	if version != "dev" {
+		return version
+	}
+	if info, ok := debug.ReadBuildInfo(); ok && info.Main.Version != "" &&
+		info.Main.Version != "(devel)" {
+		return info.Main.Version
+	}
+	return version
+}
+
 func main() {
+	// "armite version" must work without a configuration file, and
+	// without a valid one, so it is answered before anything is loaded.
+	if len(os.Args) > 1 && os.Args[1] == "version" {
+		fmt.Println("armite " + buildVersion())
+		return
+	}
 	path := configPath()
 	cfg, err := config.Load(path)
 	if err != nil {
@@ -253,7 +277,7 @@ func runCommand(cfg config.Config, path string, args []string) {
 		}
 	}
 	fmt.Fprintf(os.Stderr, "usage: armite [config init [file] | config show [--secrets] | "+
-		"config check | hosts]\n")
+		"config check | hosts | version]\n")
 	os.Exit(2)
 }
 

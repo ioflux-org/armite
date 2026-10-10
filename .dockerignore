@@ -4,7 +4,9 @@ certs
 state
 progress
 research
-node_modules
+**/node_modules
+docs/.vitepress/dist
+docs/.vitepress/cache
 examples/terraform/.terraform
 *.tfstate
 *.tfstate.backup

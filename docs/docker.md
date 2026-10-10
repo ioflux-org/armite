@@ -1,5 +1,20 @@
 # Running Armite in Docker
 
+## Pull
+
+Every release publishes the image to GitHub's registry for `linux/amd64`
+and `linux/arm64`, tagged with the version, the minor and `latest`:
+
+```bash
+docker pull ghcr.io/ioflux-org/armite:latest
+docker run -d --name armite -p 127.0.0.1:8443:8443 -p 127.0.0.1:8081:8081 \
+  -v armite:/data ghcr.io/ioflux-org/armite:latest
+docker exec armite /app/armite version
+```
+
+The named volume `armite` is the home directory described under Run;
+`docker cp armite:/data/ca.pem ./ca.pem` reads the CA out of it.
+
 ## Build
 
 ```bash
@@ -87,15 +102,15 @@ Managed-identity clients set `AZURE_POD_IDENTITY_AUTHORITY_HOST=http://127.0.0.1
 
 ## Configuration
 
-| variable               | default                              | image                          |
-| ---------------------- | ------------------------------------ | ------------------------------ |
-| `ARMITE_LISTEN_ADDR` | `127.0.0.1:8443`                     | `0.0.0.0:8443`                 |
-| `ARMITE_IMDS_ADDR`   | `127.0.0.1:8081`                     | `0.0.0.0:8081`                 |
-| `ARMITE_HOME`        | `~/.armite`                        | `/data`                        |
-| `ARMITE_STATE_DIR`   | the data directory (see config.md)   | unset (`/data/state`)          |
-| `ARMITE_STATE_KEY`   | unset (generated into the cert dir)  | unset                          |
-| `ARMITE_CONFIG`      | unset (`./armite.yaml` if present) | unset; mount a file and set it |
-| `ARMITE_LOG_FORMAT`  | `text`                               | unset; `json` for a collector  |
+| variable             | default                             | image                          |
+| -------------------- | ----------------------------------- | ------------------------------ |
+| `ARMITE_LISTEN_ADDR` | `127.0.0.1:8443`                    | `0.0.0.0:8443`                 |
+| `ARMITE_IMDS_ADDR`   | `127.0.0.1:8081`                    | `0.0.0.0:8081`                 |
+| `ARMITE_HOME`        | `~/.armite`                         | `/data`                        |
+| `ARMITE_STATE_DIR`   | the data directory (see config.md)  | unset (`/data/state`)          |
+| `ARMITE_STATE_KEY`   | unset (generated into the cert dir) | unset                          |
+| `ARMITE_CONFIG`      | unset (`./armite.yaml` if present)  | unset; mount a file and set it |
+| `ARMITE_LOG_FORMAT`  | `text`                              | unset; `json` for a collector  |
 
 The image binds all interfaces because Docker's published ports cannot
 reach a container's loopback interface; publish on `127.0.0.1` as above

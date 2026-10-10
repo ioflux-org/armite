@@ -1,11 +1,28 @@
-import { defineConfig } from 'vitepress'
+import { defineConfig, type HeadConfig } from 'vitepress'
 
-// Served as a GitHub "project" site, so every URL lives under /armite/.
-// Moving to its own domain later (say armite.ioflux.org)? Change base to '/'
-// and update `site`.
-const base = '/armite/'
-const site = 'https://ioflux-org.github.io/armite/'
+// Served on its own domain (docs/public/CNAME), so URLs live at the root.
+// Back on the GitHub project URL (ioflux-org.github.io/armite) they would
+// need base '/armite/' and the site URL to match.
+const base = '/'
+const site = 'https://armite.ioflux.org/'
 const repo = 'https://github.com/ioflux-org/armite'
+
+// Microsoft Clarity (usage analytics) is injected only when the build
+// has a project id - the Docs workflow passes the repository variable
+// CLARITY_PROJECT_ID - so local builds and forks carry no tracking.
+const clarity = process.env.CLARITY_PROJECT_ID
+const analytics: HeadConfig[] = clarity
+  ? [
+    [
+      'script',
+      {},
+      `(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};` +
+      `t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;` +
+      `y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);})` +
+      `(window,document,"clarity","script","${clarity}");`,
+    ],
+  ]
+  : []
 
 export default defineConfig({
   base,
@@ -26,6 +43,7 @@ export default defineConfig({
     ['meta', { property: 'og:site_name', content: 'Armite' }],
     ['meta', { property: 'og:image', content: `${site}social-preview.png` }],
     ['meta', { name: 'twitter:card', content: 'summary_large_image' }],
+    ...analytics,
   ],
 
   themeConfig: {
