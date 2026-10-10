@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-// Claims is the payload of a Provisio-issued token. Exported so the
+// Claims is the payload of a Armite-issued token. Exported so the
 // gateway can read the identity claims after verification.
 type Claims struct {
 	Issuer    string `json:"iss"`

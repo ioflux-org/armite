@@ -1,6 +1,6 @@
 // Package azurite runs the Azurite blob service that backs the storage
 // data plane in managed mode: one child process, started with the
-// accounts Provisio knows and restarted when that set changes, because
+// accounts Armite knows and restarted when that set changes, because
 // Azurite reads its accounts from the environment at start-up only.
 package azurite
 
@@ -161,7 +161,7 @@ func accountsEnv(accounts map[string]string) string {
 }
 
 // relay copies the child's output to the log, one line at a time, so
-// Azurite's start-up lines and complaints appear next to Provisio's.
+// Azurite's start-up lines and complaints appear next to Armite's.
 func relay(r io.Reader) {
 	sc := bufio.NewScanner(r)
 	for sc.Scan() {

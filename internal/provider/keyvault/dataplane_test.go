@@ -12,10 +12,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ioflux-org/provisio/internal/config"
-	"github.com/ioflux-org/provisio/internal/entra"
-	"github.com/ioflux-org/provisio/internal/gateway"
-	"github.com/ioflux-org/provisio/internal/rbac"
+	"github.com/ioflux-org/armite/internal/config"
+	"github.com/ioflux-org/armite/internal/entra"
+	"github.com/ioflux-org/armite/internal/gateway"
+	"github.com/ioflux-org/armite/internal/rbac"
 )
 
 const (

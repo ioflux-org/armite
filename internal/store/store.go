@@ -8,7 +8,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/ioflux-org/provisio/internal/state"
+	"github.com/ioflux-org/armite/internal/state"
 )
 
 // ErrNotFound reports a lookup for a resource ID the store does not hold.

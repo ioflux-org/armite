@@ -8,10 +8,10 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/ioflux-org/provisio/internal/arm"
-	"github.com/ioflux-org/provisio/internal/azerr"
-	"github.com/ioflux-org/provisio/internal/gateway"
-	"github.com/ioflux-org/provisio/internal/store"
+	"github.com/ioflux-org/armite/internal/arm"
+	"github.com/ioflux-org/armite/internal/azerr"
+	"github.com/ioflux-org/armite/internal/gateway"
+	"github.com/ioflux-org/armite/internal/store"
 )
 
 const (
@@ -148,7 +148,7 @@ func (p *Provider) serveVault(w http.ResponseWriter, r *http.Request, id arm.Res
 // The group must exist, the name must be valid and free everywhere
 // (vault hostnames are global), and an existing vault keeps its
 // location. Access policies are accepted and echoed but never enforced:
-// Provisio authorizes the data plane by RBAC alone.
+// Armite authorizes the data plane by RBAC alone.
 func (p *Provider) putVault(w http.ResponseWriter, r *http.Request, id arm.ResourceID) {
 	name := id.Names[0]
 	if !groupScopeRe.MatchString(id.Scope) {

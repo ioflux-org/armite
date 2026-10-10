@@ -13,10 +13,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ioflux-org/provisio/internal/config"
-	"github.com/ioflux-org/provisio/internal/gateway"
-	"github.com/ioflux-org/provisio/internal/rbac"
-	"github.com/ioflux-org/provisio/internal/store"
+	"github.com/ioflux-org/armite/internal/config"
+	"github.com/ioflux-org/armite/internal/gateway"
+	"github.com/ioflux-org/armite/internal/rbac"
+	"github.com/ioflux-org/armite/internal/store"
 )
 
 // Blob data-plane error codes, in the service's own XML envelope.
@@ -145,7 +145,7 @@ func (p *Provider) DataPlane(pub *rsa.PublicKey, now func() time.Time,
 			op, ok := parseOperation(r.Method, r.URL)
 			if !ok {
 				writeStorageError(w, http.StatusBadRequest, errUnsupported,
-					"Provisio does not recognize this blob operation and will not forward it.")
+					"Armite does not recognize this blob operation and will not forward it.")
 				return
 			}
 			if !p.authorize(w, checker, principal.ObjectID, op, acct) {
@@ -168,7 +168,7 @@ func (p *Provider) DataPlane(pub *rsa.PublicKey, now func() time.Time,
 			op, ok := parseOperation(r.Method, r.URL)
 			if !ok {
 				writeStorageError(w, http.StatusBadRequest, errUnsupported,
-					"Provisio does not recognize this blob operation and will not forward it.")
+					"Armite does not recognize this blob operation and will not forward it.")
 				return
 			}
 			oid, err := p.validateDelegationSAS(r, acct.name, op)

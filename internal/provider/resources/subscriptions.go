@@ -4,9 +4,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/ioflux-org/provisio/internal/arm"
-	"github.com/ioflux-org/provisio/internal/azerr"
-	"github.com/ioflux-org/provisio/internal/gateway"
+	"github.com/ioflux-org/armite/internal/arm"
+	"github.com/ioflux-org/armite/internal/azerr"
+	"github.com/ioflux-org/armite/internal/gateway"
 )
 
 // subscription is the Subscriptions API resource (api-version
@@ -70,7 +70,7 @@ func (p *Provider) tenant() tenant {
 }
 
 // serveSubscriptions handles GET /subscriptions (list) and
-// GET /subscriptions/{id} (get). Provisio has one subscription and every
+// GET /subscriptions/{id} (get). Armite has one subscription and every
 // authenticated principal sees it; real ARM lists only the subscriptions
 // the caller has some access to.
 func (p *Provider) serveSubscriptions(w http.ResponseWriter, r *http.Request, id arm.ResourceID) {

@@ -27,7 +27,7 @@ jobs:
     needs: gate
     runs-on: ubuntu-latest
     env:
-      CI_DIR: ${{ runner.temp }}/provisio-ci
+      CI_DIR: ${{ runner.temp }}/armite-ci
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -78,10 +78,10 @@ jobs:
           docker compose logs
       - name: Answers, with Azurite inside and the hosts lines
         run: |
-          docker compose cp provisio:/data/ca.pem ./ca.pem
+          docker compose cp armite:/data/ca.pem ./ca.pem
           curl -sS --fail --cacert ./ca.pem --resolve management.localhost:8443:127.0.0.1 \
             'https://management.localhost:8443/metadata/endpoints?api-version=2022-09-01' | head -c 200; echo
           docker compose logs | grep -q 'azurite: serving' || { echo "no Azurite in the image"; exit 1; }
-          docker compose exec provisio /app/provisio hosts
+          docker compose exec armite /app/armite hosts
       - if: always()
         run: docker compose down -v

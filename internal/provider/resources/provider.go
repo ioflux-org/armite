@@ -9,10 +9,10 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/ioflux-org/provisio/internal/azerr"
-	"github.com/ioflux-org/provisio/internal/config"
-	"github.com/ioflux-org/provisio/internal/gateway"
-	"github.com/ioflux-org/provisio/internal/store"
+	"github.com/ioflux-org/armite/internal/azerr"
+	"github.com/ioflux-org/armite/internal/config"
+	"github.com/ioflux-org/armite/internal/gateway"
+	"github.com/ioflux-org/armite/internal/store"
 )
 
 // Provider serves the Microsoft.Resources namespace: the fixed
@@ -58,7 +58,7 @@ func (p *Provider) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// The parser's native whitelist admits nothing else today; this
 		// is the fail-closed answer for a future entry without a handler.
 		azerr.WriteError(w, http.StatusNotFound, azerr.CodeResourceNotFound,
-			"Provisio has no handler for '"+r.URL.Path+"'.")
+			"Armite has no handler for '"+r.URL.Path+"'.")
 	}
 }
 

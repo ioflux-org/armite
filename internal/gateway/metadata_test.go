@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ioflux-org/provisio/internal/azerr"
-	"github.com/ioflux-org/provisio/internal/config"
+	"github.com/ioflux-org/armite/internal/azerr"
+	"github.com/ioflux-org/armite/internal/config"
 )
 
 func TestEndpointsDocuments(t *testing.T) {
@@ -38,7 +38,7 @@ func TestEndpointsDocuments(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &doc); err != nil {
 		t.Fatalf("body is not JSON: %v", err)
 	}
-	if doc.Name != "Provisio" || doc.Authentication.Tenant != "common" {
+	if doc.Name != "Armite" || doc.Authentication.Tenant != "common" {
 		t.Errorf("name/tenant = %q/%q", doc.Name, doc.Authentication.Tenant)
 	}
 	// az, the SDKs and Terraform build "{account}.blob." + this suffix.

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ioflux-org/provisio/internal/config"
+	"github.com/ioflux-org/armite/internal/config"
 )
 
 const imdsTokenPath = "/metadata/identity/oauth2/token"

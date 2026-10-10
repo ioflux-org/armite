@@ -1,11 +1,11 @@
 # Storage accounts and blobs
 
-Provisio serves `Microsoft.Storage` storage accounts on the management
+Armite serves `Microsoft.Storage` storage accounts on the management
 plane and their **blob** service on the data plane, with the data held by
 [Azurite](https://github.com/Azure/Azurite), Microsoft's own storage
-emulator, behind Provisio's identity and RBAC. The division of labour:
+emulator, behind Armite's identity and RBAC. The division of labour:
 
-- **Provisio**: accounts, keys and containers as ARM resources; bearer
+- **Armite**: accounts, keys and containers as ARM resources; bearer
   tokens; RBAC on every data-plane call; user delegation keys and the
   SAS tokens signed with them; the `allowSharedKeyAccess` switch.
 - **Azurite**: the blobs themselves, and the validation of Shared Key
@@ -52,8 +52,8 @@ your machine is in [dns.md](dns.md).
 
 | `azurite.mode` | what happens                                                                                                                                                                                                                                                                                                         |
 | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `managed`      | Provisio starts `azurite-blob` (from `npm install -g azurite`, on PATH; bundled in the Docker image) under `state/azurite`, with the accounts it has created, and restarts it when an account is created, deleted or has a key regenerated — about two seconds, during which other accounts answer 502. The default. |
-| `byo`          | Provisio forwards to `azurite.upstream`, an Azurite you run; `azurite.accounts` lists the names and keys it was started with (`AZURITE_ACCOUNTS`), and only those names can be created.                                                                                                                              |
+| `managed`      | Armite starts `azurite-blob` (from `npm install -g azurite`, on PATH; bundled in the Docker image) under `state/azurite`, with the accounts it has created, and restarts it when an account is created, deleted or has a key regenerated — about two seconds, during which other accounts answer 502. The default. |
+| `byo`          | Armite forwards to `azurite.upstream`, an Azurite you run; `azurite.accounts` lists the names and keys it was started with (`AZURITE_ACCOUNTS`), and only those names can be created.                                                                                                                              |
 | `off`          | No storage. Any `Microsoft.Storage` call gets `MissingSubscriptionRegistration`, as a subscription without the provider would.                                                                                                                                                                                       |
 
 Managed mode without `azurite-blob` on PATH logs one line at boot and
@@ -62,12 +62,12 @@ behaves as `off`; everything else keeps working.
 Azurite reads its accounts at start-up only, which is why a changed
 account set means a restart. Its data lives under the data directory,
 so "delete the data directory to start over" and `docker compose down
--v` take the blobs with them; it is not encrypted, unlike Provisio's
+-v` take the blobs with them; it is not encrypted, unlike Armite's
 own state.
 
 ## Authentication on the data plane
 
-| the request carries                 | what Provisio does                                                                                                                                                                            |
+| the request carries                 | what Armite does                                                                                                                                                                            |
 | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | a bearer token                      | verifies it (audience `https://storage.azure.com` or the account's own endpoint), names the operation, checks RBAC at the container or account scope, re-signs with the account key, forwards |
 | `Authorization: SharedKey …`        | forwards as it is; Azurite validates the signature. Refused with `KeyBasedAuthenticationNotPermitted` when the account's `allowSharedKeyAccess` is false                                      |
@@ -76,7 +76,7 @@ own state.
 | nothing                             | 401 with the storage challenge                                                                                                                                                                |
 
 Azure's 403 says only "This request is not authorized to perform this
-operation using this permission."; Provisio's adds the operation, the
+operation using this permission."; Armite's adds the operation, the
 action, the scope and the caller, which is what you need to fix it:
 
 ```text
@@ -95,7 +95,7 @@ az storage blob generate-sas -c demo -n hello.txt --account-name stdemo \
   --auth-mode login --as-user      # macOS: date -u -v+1d +%Y-%m-%dT%H:%MZ
 ```
 
-The key is issued by Provisio to the calling principal (action
+The key is issued by Armite to the calling principal (action
 `…/blobServices/generateUserDelegationKey/action`, up to seven days),
 derived from its fields with a secret, nothing stored. A SAS signed with
 it is authorized as that principal: revoke the principal's data role and
@@ -137,6 +137,6 @@ without it they use the account key and bypass RBAC, as in Azure.
 | `azurite.upstream`   |                       | byo: the URL of your Azurite, e.g. `http://127.0.0.1:10000`     |
 | `azurite.accounts[]` |                       | byo: `name` and base64 `key` of each account your Azurite knows |
 
-Azurite's own port stays reachable on the machine without Provisio in
+Azurite's own port stays reachable on the machine without Armite in
 front of it; anyone with an account key can bypass RBAC there, as they
 could with the key against Azure itself.

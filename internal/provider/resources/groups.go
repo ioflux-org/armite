@@ -8,10 +8,10 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/ioflux-org/provisio/internal/arm"
-	"github.com/ioflux-org/provisio/internal/azerr"
-	"github.com/ioflux-org/provisio/internal/gateway"
-	"github.com/ioflux-org/provisio/internal/store"
+	"github.com/ioflux-org/armite/internal/arm"
+	"github.com/ioflux-org/armite/internal/azerr"
+	"github.com/ioflux-org/armite/internal/gateway"
+	"github.com/ioflux-org/armite/internal/store"
 )
 
 const (

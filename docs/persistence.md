@@ -11,12 +11,12 @@ sent.
 | what                  | where                                     | created                 |
 | --------------------- | ----------------------------------------- | ----------------------- |
 | `journal`, `snapshot` | the data directory (config `state.dir`)   | first boot, first write |
-| `state.key`           | `~/.provisio/` (next to the CA key), 0600 | first boot              |
+| `state.key`           | `~/.armite/` (next to the CA key), 0600 | first boot              |
 | `azurite/`            | the data directory, Azurite's own files   | first storage account   |
 
-The data directory is `~/.local/share/provisio` on Linux,
-`~/Library/Application Support/provisio` on macOS, `%LOCALAPPDATA%\provisio`
-on Windows — or `$PROVISIO_HOME/state` when `PROVISIO_HOME` is set, as
+The data directory is `~/.local/share/armite` on Linux,
+`~/Library/Application Support/armite` on macOS, `%LOCALAPPDATA%\armite`
+on Windows — or `$ARMITE_HOME/state` when `ARMITE_HOME` is set, as
 in Docker (`/data/state`). The state files are encrypted (AES-256-GCM)
 with the key, so the data directory on its own cannot be read, and
 without `state.key` it cannot be opened. Deleting the data directory is
@@ -24,12 +24,12 @@ the way to start over: the keys stay, clients stay trusted. Deleting the
 keys alone leaves data nobody can read — delete both instead.
 
 To supply your own key instead of the generated one, set `state.key`
-in `provisio.yaml` or `PROVISIO_STATE_KEY` to a base64 32-byte value
+in `armite.yaml` or `ARMITE_STATE_KEY` to a base64 32-byte value
 (`openssl rand -base64 32`). Then the state directory is unreadable to
 anyone who does not also have that value.
 
 Blob contents are Azurite's and are not encrypted; account metadata and
-keys are Provisio's and are.
+keys are Armite's and are.
 
 ## How
 

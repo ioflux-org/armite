@@ -18,7 +18,7 @@ import (
 // such a SAS is authorized as that principal would be - the SAS's
 // permissions intersected with the principal's RBAC, checked at use.
 // That makes it the one blob feature that is identity-based end to end,
-// so Provisio issues and validates these itself; Azurite never sees one.
+// so Armite issues and validates these itself; Azurite never sees one.
 //
 // The key's value is derived from the fields the key carries (object id,
 // tenant, window, service, version) with a secret seed, as Azurite does

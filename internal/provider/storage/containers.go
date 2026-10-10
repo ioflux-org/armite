@@ -10,10 +10,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ioflux-org/provisio/internal/arm"
-	"github.com/ioflux-org/provisio/internal/azerr"
-	"github.com/ioflux-org/provisio/internal/gateway"
-	"github.com/ioflux-org/provisio/internal/store"
+	"github.com/ioflux-org/armite/internal/arm"
+	"github.com/ioflux-org/armite/internal/azerr"
+	"github.com/ioflux-org/armite/internal/gateway"
+	"github.com/ioflux-org/armite/internal/store"
 )
 
 // The management plane's view of containers and the blob service is
@@ -445,7 +445,7 @@ func (p *Provider) wipeContainers(r *http.Request, account string) {
 }
 
 // serveOtherService answers for the file, queue and table services of an
-// account - services Provisio does not serve - so that clients reading
+// account - services Armite does not serve - so that clients reading
 // every service's properties (Terraform does, on every refresh) get a
 // consistent "nothing configured" instead of a 404.
 func (p *Provider) serveOtherService(w http.ResponseWriter, r *http.Request,

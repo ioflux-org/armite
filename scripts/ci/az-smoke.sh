@@ -5,7 +5,7 @@
 # roles, succeeds, and reads a blob with a user delegation SAS. Uses an
 # az configuration directory of its own. Exits non-zero on any mismatch.
 set -euo pipefail
-CI_DIR="${CI_DIR:-/tmp/provisio-ci}"
+CI_DIR="${CI_DIR:-/tmp/armite-ci}"
 export AZURE_CONFIG_DIR="$CI_DIR/az" REQUESTS_CA_BUNDLE="$CI_DIR/home/ca.pem"
 SUB=22222222-2222-2222-2222-222222222222
 OID=44444444-4444-4444-4444-444444444444
@@ -21,11 +21,11 @@ refused() {
 }
 
 az cloud set -n AzureCloud 2>/dev/null || true
-az cloud unregister -n Provisio 2>/dev/null || true
-az cloud register -n Provisio --endpoint-resource-manager https://management.localhost:8443
-az cloud set -n Provisio
+az cloud unregister -n Armite 2>/dev/null || true
+az cloud register -n Armite --endpoint-resource-manager https://management.localhost:8443
+az cloud set -n Armite
 az config set core.instance_discovery=false core.collect_telemetry=false core.only_show_errors=true >/dev/null
-az login --service-principal -u 33333333-3333-3333-3333-333333333333 -p provisio-secret \
+az login --service-principal -u 33333333-3333-3333-3333-333333333333 -p armite-secret \
     --tenant 11111111-1111-1111-1111-111111111111 -o none
 [ "$(az account show --query id -o tsv)" = "$SUB" ] || fail "login did not land in the subscription"
 ok "az login"

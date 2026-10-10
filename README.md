@@ -1,8 +1,8 @@
-# Provisio
+# Armite
 
 A local Azure emulator with a real identity plane and real RBAC. Your
 application, the Azure CLI, the Azure SDKs and Terraform talk to
-Provisio exactly as they talk to Azure: tokens are minted and verified,
+Armite exactly as they talk to Azure: tokens are minted and verified,
 role assignments are evaluated on both the management plane and the
 data plane, and a principal without the right role gets the same 403 it
 would get in production.
@@ -21,7 +21,7 @@ That caller is **Owner** of the subscription. Owner carries every
 management-plane action and not one data-plane action, so on an
 RBAC-mode vault it cannot read or write a secret until a data role such
 as Key Vault Secrets Officer is assigned. "But I'm Owner?!" is one of
-Azure's most common surprises; with Provisio it happens on your laptop
+Azure's most common surprises; with Armite it happens on your laptop
 and in CI instead of in production.
 
 ## What is inside
@@ -46,10 +46,10 @@ with `./scripts/ci/all.sh`).
 ## Quickstart
 
 ```bash
-go run ./cmd/provisio          # or: docker compose up -d  (see docs/docker.md)
+go run ./cmd/armite          # or: docker compose up -d  (see docs/docker.md)
 ```
 
-The server generates a private CA in `~/.provisio/` at first boot, keeps what you create in your data directory (`~/.local/share/provisio` on Linux), and serves `https://management.localhost:8443` (ARM), `https://login.localhost:8443` (Entra), `https://{vault}.vault.localhost:8443` (Key Vault data
+The server generates a private CA in `~/.armite/` at first boot, keeps what you create in your data directory (`~/.local/share/armite` on Linux), and serves `https://management.localhost:8443` (ARM), `https://login.localhost:8443` (Entra), `https://{vault}.vault.localhost:8443` (Key Vault data
 plane) and `https://{account}.blob.core.localhost:8443` (blobs), plus
 IMDS on `http://127.0.0.1:8081`. Storage accounts need `azurite-blob` on
 your PATH (`npm install -g azurite`; the Docker image has it) and are
@@ -57,21 +57,21 @@ otherwise off. Two things every client needs:
 
 1. **Hostnames** resolving to 127.0.0.1. Linux with systemd-resolved
    does it already; WSL2 and macOS need a one-time resolver fix or the
-   `/etc/hosts` lines `provisio hosts` prints — see [docs/dns.md](docs/dns.md).
-2. **The CA.** `~/.provisio/ca.pem`, passed per client (`curl --cacert`,
+   `/etc/hosts` lines `armite hosts` prints — see [docs/dns.md](docs/dns.md).
+2. **The CA.** `~/.armite/ca.pem`, passed per client (`curl --cacert`,
    `REQUESTS_CA_BUNDLE`, `NODE_EXTRA_CA_CERTS`, `SSL_CERT_FILE`).
 
 Then the demo with the CLI, in a config directory of its own so your
 real Azure login is untouched:
 
 ```bash
-export AZURE_CONFIG_DIR=$HOME/.azure-provisio REQUESTS_CA_BUNDLE=$HOME/.provisio/ca.pem
-az cloud set -n AzureCloud 2>/dev/null; az cloud unregister -n Provisio 2>/dev/null
-az cloud register -n Provisio --endpoint-resource-manager https://management.localhost:8443
-az cloud set -n Provisio
+export AZURE_CONFIG_DIR=$HOME/.azure-armite REQUESTS_CA_BUNDLE=$HOME/.armite/ca.pem
+az cloud set -n AzureCloud 2>/dev/null; az cloud unregister -n Armite 2>/dev/null
+az cloud register -n Armite --endpoint-resource-manager https://management.localhost:8443
+az cloud set -n Armite
 az config set core.instance_discovery=false
 az login --service-principal -u 33333333-3333-3333-3333-333333333333 \
-  -p provisio-secret --tenant 11111111-1111-1111-1111-111111111111
+  -p armite-secret --tenant 11111111-1111-1111-1111-111111111111
 
 az group create -n kv-rg -l eastus
 az keyvault create -n kv-demo -g kv-rg -l eastus --enable-rbac-authorization
@@ -91,14 +91,14 @@ creates a container and cannot upload a blob — is in
 
 ## Built-in identities
 
-Provisio is one tenant with one subscription and two principals, all
+Armite is one tenant with one subscription and two principals, all
 fixed and documented, so nothing needs registering:
 
 |                                                    | value                                                                                                                  |
 | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
 | Tenant                                             | `11111111-1111-1111-1111-111111111111`                                                                                 |
 | Subscription                                       | `22222222-2222-2222-2222-222222222222`                                                                                 |
-| Service principal (Owner of the subscription)      | client `33333333-3333-3333-3333-333333333333`, secret `provisio-secret`, object `44444444-4444-4444-4444-444444444444` |
+| Service principal (Owner of the subscription)      | client `33333333-3333-3333-3333-333333333333`, secret `armite-secret`, object `44444444-4444-4444-4444-444444444444` |
 | Managed identity (Contributor of the subscription) | client `55555555-5555-5555-5555-555555555555`, object `66666666-6666-6666-6666-666666666666`, via IMDS                 |
 
 The managed identity is the one your production code path uses:
@@ -107,7 +107,7 @@ and no secret anywhere, exactly as on a VM, and its roles are enforced.
 
 ## What is different from Azure
 
-Provisio is faithful where clients look and deliberately simple
+Armite is faithful where clients look and deliberately simple
 elsewhere. The complete list is in
 [docs/divergences.md](docs/divergences.md); the ones you will meet first:
 
@@ -130,7 +130,7 @@ elsewhere. The complete list is in
 Every local Azure tool is either a data-plane emulator with no identity
 (Azurite, the Cosmos and Service Bus emulators), a management-plane mock
 that accepts any bearer token, or an RBAC implementation scoped to one
-service. Provisio's centre is a general RBAC engine over Azure's own
+service. Armite's centre is a general RBAC engine over Azure's own
 role definitions, fed by tokens it mints and verifies itself, with
 services attached behind it. The wager is that the expensive part of
 Azure to get right locally is the authorization model, not any single
@@ -140,14 +140,14 @@ layer), then compute.
 
 ## Legal
 
-Provisio implements publicly documented HTTP APIs so that unmodified
+Armite implements publicly documented HTTP APIs so that unmodified
 clients work against it, the same way LocalStack does for AWS. It ships
 none of Microsoft's code or data except the public built-in role
 definitions (obtainable by anyone with `az role definition list`) and,
 for tests only, files from the MIT-licensed
 [azure-rest-api-specs](https://github.com/Azure/azure-rest-api-specs)
 repository, credited in their `testdata` directories. Azure, Entra and
-Key Vault are Microsoft trademarks; Provisio is not affiliated with or
+Key Vault are Microsoft trademarks; Armite is not affiliated with or
 endorsed by Microsoft.
 
 Licensed under the [Apache License 2.0](LICENSE).

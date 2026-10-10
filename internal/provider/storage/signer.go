@@ -13,7 +13,7 @@ import (
 // Shared Key is the Storage service's own request signature: an HMAC
 // over the method, a fixed list of standard headers, every x-ms-*
 // header and the canonicalized resource, keyed by the account key.
-// Provisio signs the requests it forwards on a client's behalf after a
+// Armite signs the requests it forwards on a client's behalf after a
 // bearer token was verified and authorized, so Azurite - which trusts
 // only keys - accepts them.
 

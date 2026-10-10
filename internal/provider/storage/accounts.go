@@ -10,10 +10,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ioflux-org/provisio/internal/arm"
-	"github.com/ioflux-org/provisio/internal/azerr"
-	"github.com/ioflux-org/provisio/internal/gateway"
-	"github.com/ioflux-org/provisio/internal/store"
+	"github.com/ioflux-org/armite/internal/arm"
+	"github.com/ioflux-org/armite/internal/azerr"
+	"github.com/ioflux-org/armite/internal/gateway"
+	"github.com/ioflux-org/armite/internal/store"
 )
 
 const (
@@ -241,8 +241,8 @@ func (p *Provider) putAccount(w http.ResponseWriter, r *http.Request, id arm.Res
 			if _, ok := p.byo[name]; !ok {
 				azerr.WriteError(w, http.StatusBadRequest, "StorageAccountNotConfigured",
 					"The storage account '"+name+"' is not one of the accounts your Azurite "+
-						"was started with; add it to azurite.accounts in provisio.yaml, or let "+
-						"Provisio run Azurite (azurite.mode: managed).")
+						"was started with; add it to azurite.accounts in armite.yaml, or let "+
+						"Armite run Azurite (azurite.mode: managed).")
 				return
 			}
 		}

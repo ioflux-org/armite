@@ -5,9 +5,9 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/ioflux-org/provisio/internal/arm"
-	"github.com/ioflux-org/provisio/internal/azerr"
-	"github.com/ioflux-org/provisio/internal/gateway"
+	"github.com/ioflux-org/armite/internal/arm"
+	"github.com/ioflux-org/armite/internal/azerr"
+	"github.com/ioflux-org/armite/internal/gateway"
 )
 
 // genericResource is one entry of the generic resource listing: identity
@@ -31,7 +31,7 @@ var (
 )
 
 // parseResourceFilter returns the type and name to keep ("" for any);
-// ok is false for a filter Provisio does not understand.
+// ok is false for a filter Armite does not understand.
 func parseResourceFilter(filter string) (typ, name string, ok bool) {
 	filter = strings.TrimSpace(filter)
 	if filter == "" {

@@ -24,7 +24,7 @@ const StorageAudience = "https://storage.azure.com"
 
 // SeedAssignment is a role assignment granted at boot - the answer to
 // "who assigns the first role". Real Azure grants the account owner at
-// subscription creation, out of band; Provisio grants from config.
+// subscription creation, out of band; Armite grants from config.
 type SeedAssignment struct {
 	PrincipalID      string `yaml:"principal_id"`
 	RoleDefinitionID string `yaml:"role_definition_id"` // bare GUID or full ARM path
@@ -83,7 +83,7 @@ type Config struct {
 }
 
 // Azurite is the blob store behind the storage data plane. In managed
-// mode Provisio starts Command itself, with the accounts it has created,
+// mode Armite starts Command itself, with the accounts it has created,
 // and restarts it when an account is created or deleted; in byo mode it
 // forwards to Upstream, an Azurite the user runs, whose accounts (and
 // keys) are listed here because that Azurite was started with them. Off
@@ -110,59 +110,59 @@ type Log struct {
 	Format string `yaml:"format"`
 }
 
-// Home is the directory Provisio keeps its identity in - the CA, the
+// Home is the directory Armite keeps its identity in - the CA, the
 // leaf certificate, the signing key, the state key - and the optional
-// configuration file: PROVISIO_HOME, else ~/.provisio, like ~/.ssh or
+// configuration file: ARMITE_HOME, else ~/.armite, like ~/.ssh or
 // ~/.aws. One per machine, so a server started from any directory is
 // the same server to every client that trusted its CA. The data lives
 // elsewhere, see DataDir.
 func Home() string {
-	if v := os.Getenv("PROVISIO_HOME"); v != "" {
+	if v := os.Getenv("ARMITE_HOME"); v != "" {
 		return v
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return ".provisio" // no home directory: the working directory
+		return ".armite" // no home directory: the working directory
 	}
-	return filepath.Join(home, ".provisio")
+	return filepath.Join(home, ".armite")
 }
 
 // DataDir is where the state lives by default: the user's data
 // directory for the platform - $XDG_DATA_HOME or ~/.local/share on
 // Linux, ~/Library/Application Support on macOS, %LOCALAPPDATA% on
-// Windows - plus "provisio". Data grows (Azurite's blobs are in it) and
+// Windows - plus "armite". Data grows (Azurite's blobs are in it) and
 // is disposable, which a dot directory of keys is not; deleting the
-// data directory starts over, with the same CA. When PROVISIO_HOME is
+// data directory starts over, with the same CA. When ARMITE_HOME is
 // set explicitly, the data goes under it instead, so one variable gives
 // a container or a second instance a self-contained directory.
 func DataDir() string {
-	if v := os.Getenv("PROVISIO_HOME"); v != "" {
+	if v := os.Getenv("ARMITE_HOME"); v != "" {
 		return filepath.Join(v, "state")
 	}
 	home, err := os.UserHomeDir()
 	switch {
 	case runtime.GOOS == "windows" && os.Getenv("LOCALAPPDATA") != "":
-		return filepath.Join(os.Getenv("LOCALAPPDATA"), "provisio")
+		return filepath.Join(os.Getenv("LOCALAPPDATA"), "armite")
 	case runtime.GOOS == "darwin" && err == nil:
-		return filepath.Join(home, "Library", "Application Support", "provisio")
+		return filepath.Join(home, "Library", "Application Support", "armite")
 	case os.Getenv("XDG_DATA_HOME") != "":
-		return filepath.Join(os.Getenv("XDG_DATA_HOME"), "provisio")
+		return filepath.Join(os.Getenv("XDG_DATA_HOME"), "armite")
 	case err == nil:
-		return filepath.Join(home, ".local", "share", "provisio")
+		return filepath.Join(home, ".local", "share", "armite")
 	}
 	return filepath.Join(Home(), "state")
 }
 
 // ConfigFile is the configuration file Home holds, when it exists.
-const ConfigFile = "provisio.yaml"
+const ConfigFile = "armite.yaml"
 
 func Default() Config {
 	config := Config{
 		TenantID:             "11111111-1111-1111-1111-111111111111",
 		SubscriptionID:       "22222222-2222-2222-2222-222222222222",
 		DefaultResourceGroup: "default-rg",
-		SubscriptionName:     "Provisio Subscription",
-		TenantName:           "Provisio",
+		SubscriptionName:     "Armite Subscription",
+		TenantName:           "Armite",
 		ListenerAddr:         "127.0.0.1:8443",
 		ARMHost:              "management.localhost",
 		LoginHost:            "login.localhost",
@@ -171,7 +171,7 @@ func Default() Config {
 		ARMAudience:          "https://management.azure.com",
 		Clients: []Client{{
 			ID:       "33333333-3333-3333-3333-333333333333",
-			Secret:   "provisio-secret",
+			Secret:   "armite-secret",
 			ObjectID: "44444444-4444-4444-4444-444444444444",
 		}},
 		IMDSAddr: "127.0.0.1:8081",
@@ -295,12 +295,12 @@ func (c Config) AzuriteURL() string {
 }
 
 // FromEnv returns Default with the environment applied: the listen
-// addresses PROVISIO_LISTEN_ADDR (ARM, login and the vaults) and
-// PROVISIO_IMDS_ADDR - the defaults bind the loopback interface, which
+// addresses ARMITE_LISTEN_ADDR (ARM, login and the vaults) and
+// ARMITE_IMDS_ADDR - the defaults bind the loopback interface, which
 // a container's published ports cannot reach, so the image sets both to
-// 0.0.0.0 - the state directory and key, PROVISIO_STATE_DIR and
-// PROVISIO_STATE_KEY, and the log format, PROVISIO_LOG_FORMAT. The home
-// directory itself is PROVISIO_HOME, read by Home and DataDir. Hostnames
+// 0.0.0.0 - the state directory and key, ARMITE_STATE_DIR and
+// ARMITE_STATE_KEY, and the log format, ARMITE_LOG_FORMAT. The home
+// directory itself is ARMITE_HOME, read by Home and DataDir. Hostnames
 // and the port clients use are unchanged.
 func FromEnv() Config {
 	cfg := Default()
@@ -309,19 +309,19 @@ func FromEnv() Config {
 }
 
 func applyEnv(cfg *Config) {
-	if v := os.Getenv("PROVISIO_LISTEN_ADDR"); v != "" {
+	if v := os.Getenv("ARMITE_LISTEN_ADDR"); v != "" {
 		cfg.ListenerAddr = v
 	}
-	if v := os.Getenv("PROVISIO_IMDS_ADDR"); v != "" {
+	if v := os.Getenv("ARMITE_IMDS_ADDR"); v != "" {
 		cfg.IMDSAddr = v
 	}
-	if v := os.Getenv("PROVISIO_STATE_DIR"); v != "" {
+	if v := os.Getenv("ARMITE_STATE_DIR"); v != "" {
 		cfg.State.Dir = v
 	}
-	if v := os.Getenv("PROVISIO_STATE_KEY"); v != "" {
+	if v := os.Getenv("ARMITE_STATE_KEY"); v != "" {
 		cfg.State.Key = v
 	}
-	if v := os.Getenv("PROVISIO_LOG_FORMAT"); v != "" {
+	if v := os.Getenv("ARMITE_LOG_FORMAT"); v != "" {
 		cfg.Log.Format = v
 	}
 }

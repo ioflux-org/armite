@@ -1,21 +1,21 @@
 # Configuration
 
-Provisio runs with no configuration file. To change anything, generate
+Armite runs with no configuration file. To change anything, generate
 the commented template and edit it:
 
 ```bash
-provisio config init          # writes ~/.provisio/provisio.yaml with every key and its default
-provisio config show          # the effective configuration, secrets masked, and where it came from
-provisio config show --secrets
-provisio config check         # validate the file without starting the server
-provisio hosts                # the /etc/hosts lines for every hostname the server answers to
+armite config init          # writes ~/.armite/armite.yaml with every key and its default
+armite config show          # the effective configuration, secrets masked, and where it came from
+armite config show --secrets
+armite config check         # validate the file without starting the server
+armite hosts                # the /etc/hosts lines for every hostname the server answers to
 ```
 
-With `go run`, replace `provisio` by `go run ./cmd/provisio`.
+With `go run`, replace `armite` by `go run ./cmd/armite`.
 
-The server reads the file named by `PROVISIO_CONFIG`, else `./provisio.yaml`
+The server reads the file named by `ARMITE_CONFIG`, else `./armite.yaml`
 in the working directory when it exists (a project's own, like a `.env`),
-else `~/.provisio/provisio.yaml` when it exists, else it runs on the
+else `~/.armite/armite.yaml` when it exists, else it runs on the
 defaults; the boot log says which. Every key is optional: delete the
 ones you do not change and their defaults apply.
 
@@ -23,20 +23,20 @@ ones you do not change and their defaults apply.
 
 Two places, following the platform's conventions:
 
-- **`~/.provisio/`**, the home directory: the CA and its key, the leaf
+- **`~/.armite/`**, the home directory: the CA and its key, the leaf
   certificate and key, the token-signing key, the state key — generated
   at first boot, private to you, long-lived — and the optional
   configuration file. One identity per machine, so the server is the
   same server to every client whichever directory it was started from,
-  and `~/.provisio/ca.pem` is the one path to trust.
+  and `~/.armite/ca.pem` is the one path to trust.
 - **The data directory**, `state.dir`: the journal, the snapshot and
   Azurite's files — everything created through the API, disposable.
-  `~/.local/share/provisio` on Linux (`$XDG_DATA_HOME/provisio` when
-  set), `~/Library/Application Support/provisio` on macOS,
-  `%LOCALAPPDATA%\provisio` on Windows. Delete it to start over; the
+  `~/.local/share/armite` on Linux (`$XDG_DATA_HOME/armite` when
+  set), `~/Library/Application Support/armite` on macOS,
+  `%LOCALAPPDATA%\armite` on Windows. Delete it to start over; the
   CA stays and clients stay trusted.
 
-`PROVISIO_HOME` moves the home directory and, so that one variable
+`ARMITE_HOME` moves the home directory and, so that one variable
 gives a container or a second instance a self-contained directory, puts
 the data under it as `state/` (the Docker image sets `/data`).
 
@@ -47,9 +47,9 @@ Three rules to know:
   the list too.
 - An unknown key stops the boot, with the line and the offending text.
   So does an invalid value; every problem in the file is reported at once.
-- The environment variables from the Docker image (`PROVISIO_LISTEN_ADDR`,
-  `PROVISIO_IMDS_ADDR`, `PROVISIO_STATE_DIR`, `PROVISIO_STATE_KEY`,
-  `PROVISIO_LOG_FORMAT`) apply after the file; `PROVISIO_HOME` moves the
+- The environment variables from the Docker image (`ARMITE_LISTEN_ADDR`,
+  `ARMITE_IMDS_ADDR`, `ARMITE_STATE_DIR`, `ARMITE_STATE_KEY`,
+  `ARMITE_LOG_FORMAT`) apply after the file; `ARMITE_HOME` moves the
   home directory and the data under it.
 
 ## Keys
@@ -57,7 +57,7 @@ Three rules to know:
 | key                                                          | default                                                                 | meaning                                                                                                                                           |
 | ------------------------------------------------------------ | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `tenant_id`, `subscription_id`                               | `1111…`, `2222…`                                                        | the one tenant and subscription                                                                                                                   |
-| `subscription_name`, `tenant_name`, `default_resource_group` | `Provisio Subscription`, `Provisio`, `default-rg`                       | names shown by `az account`                                                                                                                       |
+| `subscription_name`, `tenant_name`, `default_resource_group` | `Armite Subscription`, `Armite`, `default-rg`                       | names shown by `az account`                                                                                                                       |
 | `listener_addr`                                              | `127.0.0.1:8443`                                                        | ARM, login and every vault; the port is part of every URL                                                                                         |
 | `arm_host`, `login_host`, `vault_host`                       | `management.localhost`, `login.localhost`, `vault.localhost`            | bare hostnames; vaults are `{name}.vault_host`                                                                                                    |
 | `blob_host`                                                  | `blob.core.localhost`                                                   | storage accounts are `{name}.blob_host`; must start with `blob.` (see [storage.md](storage.md))                                                   |
@@ -67,9 +67,9 @@ Three rules to know:
 | `managed_identity`                                           | `client_id` `5555…`, `object_id` `6666…`                                | the principal IMDS issues tokens for; it has no secret                                                                                            |
 | `role_assignments[]`                                         | Owner for the client, Contributor for the identity, at the subscription | granted at boot; `principal_id` must be a client's or the identity's `object_id`; `role_definition_id` is a built-in role GUID or a full ARM path |
 | `state.dir`                                                  | the data directory (see above)                                          | where resources, assignments and secrets persist; relative = from the working directory; `""` = in memory ([persistence.md](persistence.md))      |
-| `state.key`                                                  | `""` (generated into `~/.provisio/`)                                    | base64 32-byte key the state files are encrypted with (`openssl rand -base64 32`)                                                                 |
+| `state.key`                                                  | `""` (generated into `~/.armite/`)                                    | base64 32-byte key the state files are encrypted with (`openssl rand -base64 32`)                                                                 |
 | `state.compact_after_mb`                                     | `8`                                                                     | journal size past which it is folded into the snapshot; `0` never                                                                                 |
-| `azurite.mode`                                               | `managed`                                                               | who runs the blob store: `managed` (Provisio starts `azurite-blob`), `byo` (yours) or `off`                                                       |
+| `azurite.mode`                                               | `managed`                                                               | who runs the blob store: `managed` (Armite starts `azurite-blob`), `byo` (yours) or `off`                                                       |
 | `azurite.command`, `azurite.port`                            | `azurite-blob`, `10000`                                                 | managed mode: the executable (on PATH) and its loopback port                                                                                      |
 | `azurite.upstream`, `azurite.accounts[]`                     |                                                                         | byo mode: your Azurite's URL, and the `name` + base64 `key` of each account it knows                                                              |
 | `log.format`                                                 | `text`                                                                  | `text` for a terminal, `json` for a collector; one line per request either way (see below)                                                        |
@@ -114,7 +114,7 @@ create --assignee-object-id …`:
 ```yaml
 clients:
   - id: 33333333-3333-3333-3333-333333333333 # the built-in one
-    secret: provisio-secret
+    secret: armite-secret
     object_id: 44444444-4444-4444-4444-444444444444
   - id: 7c0d9a2e-5f1b-4c6d-8e3f-1a2b3c4d5e6f
     secret: ci-secret
@@ -165,7 +165,7 @@ header; `az --debug` prints it for management-plane calls
 (`'X-Ms-Request-Id'`); storage errors carry `RequestId:` in the message,
 as Azure's do. Then `grep` the id in the server's output.
 
-`log.format: json` (or `PROVISIO_LOG_FORMAT=json`) writes one JSON
+`log.format: json` (or `ARMITE_LOG_FORMAT=json`) writes one JSON
 object per line instead, for a log collector — every line, the boot
 messages included; `duration` is then in nanoseconds:
 
@@ -176,7 +176,7 @@ messages included; `duration` is then in nanoseconds:
 ## What a bad file looks like
 
 ```text
-config: provisio.yaml:
+config: armite.yaml:
 line 12: field vault_hots not found
     12 | vault_hots: kv.local
 clients[0].secret: must not be empty

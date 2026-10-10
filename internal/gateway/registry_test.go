@@ -5,8 +5,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/ioflux-org/provisio/internal/arm"
-	"github.com/ioflux-org/provisio/internal/azerr"
+	"github.com/ioflux-org/armite/internal/arm"
+	"github.com/ioflux-org/armite/internal/azerr"
 )
 
 type describing struct {
@@ -118,7 +118,7 @@ func TestRegistryCatalog(t *testing.T) {
 	}
 }
 
-// A namespace Provisio implements but is not serving answers as a
+// A namespace Armite implements but is not serving answers as a
 // provider the subscription has not registered: 409, not 404.
 func TestRegistryDisabledNamespace(t *testing.T) {
 	reg := NewRegistry()

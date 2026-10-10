@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ioflux-org/provisio/internal/gateway"
-	"github.com/ioflux-org/provisio/internal/rbac"
+	"github.com/ioflux-org/armite/internal/gateway"
+	"github.com/ioflux-org/armite/internal/rbac"
 )
 
 // DataPlane returns the handler for vault hostnames ({name}.{VaultHost}):
@@ -70,7 +70,7 @@ func (p *Provider) DataPlane(pub *rsa.PublicKey, now func() time.Time,
 // vaultFor resolves the request's Host to a vault: the first label of
 // the hostname is the vault name, and a vault of that name must exist
 // as a resource. Real Azure answers a missing vault with NXDOMAIN;
-// Provisio owns the whole suffix, so it answers 404.
+// Armite owns the whole suffix, so it answers 404.
 func (p *Provider) vaultFor(hostport string) (vaultContext, bool) {
 	host := hostport
 	h, _, err := net.SplitHostPort(host)

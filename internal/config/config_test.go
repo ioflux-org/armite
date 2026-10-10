@@ -176,27 +176,27 @@ func TestDefaultSeedsBootAssignments(t *testing.T) {
 }
 
 func TestHomeAndDataDir(t *testing.T) {
-	t.Setenv("PROVISIO_HOME", "")
+	t.Setenv("ARMITE_HOME", "")
 	home, err := os.UserHomeDir()
 	if err != nil {
 		t.Skip("no home directory here")
 	}
-	if got := Home(); got != filepath.Join(home, ".provisio") {
-		t.Errorf("Home() = %q, want ~/.provisio", got)
+	if got := Home(); got != filepath.Join(home, ".armite") {
+		t.Errorf("Home() = %q, want ~/.armite", got)
 	}
 	if runtime.GOOS == "linux" {
 		t.Setenv("XDG_DATA_HOME", "")
-		if got := Default().State.Dir; got != filepath.Join(home, ".local", "share", "provisio") {
-			t.Errorf("the data must default to ~/.local/share/provisio, not the home: %q", got)
+		if got := Default().State.Dir; got != filepath.Join(home, ".local", "share", "armite") {
+			t.Errorf("the data must default to ~/.local/share/armite, not the home: %q", got)
 		}
 		t.Setenv("XDG_DATA_HOME", "/xdg")
-		if got := DataDir(); got != "/xdg/provisio" {
+		if got := DataDir(); got != "/xdg/armite" {
 			t.Errorf("XDG_DATA_HOME must be honoured: %q", got)
 		}
 	}
-	t.Setenv("PROVISIO_HOME", "/data")
+	t.Setenv("ARMITE_HOME", "/data")
 	if Home() != "/data" || Default().State.Dir != filepath.Join("/data", "state") {
-		t.Errorf("an explicit PROVISIO_HOME must be self-contained: %q %q", Home(),
+		t.Errorf("an explicit ARMITE_HOME must be self-contained: %q %q", Home(),
 			Default().State.Dir)
 	}
 }
@@ -205,8 +205,8 @@ func TestFromEnv(t *testing.T) {
 	if got := FromEnv(); got.ListenerAddr != Default().ListenerAddr {
 		t.Errorf("no env: ListenerAddr = %q, want the default", got.ListenerAddr)
 	}
-	t.Setenv("PROVISIO_LISTEN_ADDR", "0.0.0.0:8443")
-	t.Setenv("PROVISIO_IMDS_ADDR", "0.0.0.0:8081")
+	t.Setenv("ARMITE_LISTEN_ADDR", "0.0.0.0:8443")
+	t.Setenv("ARMITE_IMDS_ADDR", "0.0.0.0:8081")
 	got := FromEnv()
 	if got.ListenerAddr != "0.0.0.0:8443" || got.IMDSAddr != "0.0.0.0:8081" {
 		t.Errorf("FromEnv = %q / %q", got.ListenerAddr, got.IMDSAddr)

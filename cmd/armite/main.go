@@ -12,27 +12,27 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ioflux-org/provisio/internal/azurite"
-	"github.com/ioflux-org/provisio/internal/config"
-	"github.com/ioflux-org/provisio/internal/entra"
-	"github.com/ioflux-org/provisio/internal/gateway"
-	"github.com/ioflux-org/provisio/internal/httplog"
-	"github.com/ioflux-org/provisio/internal/pki"
-	"github.com/ioflux-org/provisio/internal/provider/authorization"
-	"github.com/ioflux-org/provisio/internal/provider/keyvault"
-	"github.com/ioflux-org/provisio/internal/provider/resources"
-	"github.com/ioflux-org/provisio/internal/provider/storage"
-	"github.com/ioflux-org/provisio/internal/rbac"
-	"github.com/ioflux-org/provisio/internal/router"
-	"github.com/ioflux-org/provisio/internal/state"
-	"github.com/ioflux-org/provisio/internal/store"
+	"github.com/ioflux-org/armite/internal/azurite"
+	"github.com/ioflux-org/armite/internal/config"
+	"github.com/ioflux-org/armite/internal/entra"
+	"github.com/ioflux-org/armite/internal/gateway"
+	"github.com/ioflux-org/armite/internal/httplog"
+	"github.com/ioflux-org/armite/internal/pki"
+	"github.com/ioflux-org/armite/internal/provider/authorization"
+	"github.com/ioflux-org/armite/internal/provider/keyvault"
+	"github.com/ioflux-org/armite/internal/provider/resources"
+	"github.com/ioflux-org/armite/internal/provider/storage"
+	"github.com/ioflux-org/armite/internal/rbac"
+	"github.com/ioflux-org/armite/internal/router"
+	"github.com/ioflux-org/armite/internal/state"
+	"github.com/ioflux-org/armite/internal/store"
 )
 
-// configPath is PROVISIO_CONFIG, else ./provisio.yaml when it exists
+// configPath is ARMITE_CONFIG, else ./armite.yaml when it exists
 // (a project's own, like a .env), else the home directory's when it
 // exists, else "" (defaults only): zero files to run, one file to tweak.
 func configPath() string {
-	if p := os.Getenv("PROVISIO_CONFIG"); p != "" {
+	if p := os.Getenv("ARMITE_CONFIG"); p != "" {
 		return p
 	}
 	for _, p := range []string{config.ConfigFile, filepath.Join(config.Home(), config.ConfigFile)} {
@@ -198,7 +198,7 @@ func main() {
 }
 
 // runCommand serves the subcommands: "config init [file]" writes a
-// commented provisio.yaml of the defaults into the home directory,
+// commented armite.yaml of the defaults into the home directory,
 // "config show [--secrets]" prints the effective configuration, "config
 // check" only validates (the Load above already did, so reaching here
 // means it passed), "hosts" prints the /etc/hosts lines for every
@@ -252,7 +252,7 @@ func runCommand(cfg config.Config, path string, args []string) {
 			return
 		}
 	}
-	fmt.Fprintf(os.Stderr, "usage: provisio [config init [file] | config show [--secrets] | "+
+	fmt.Fprintf(os.Stderr, "usage: armite [config init [file] | config show [--secrets] | "+
 		"config check | hosts]\n")
 	os.Exit(2)
 }
@@ -288,7 +288,7 @@ func printHosts(cfg config.Config) error {
 				name+"."+cfg.TableHost())
 		}
 	}
-	fmt.Println("# provisio hosts: append to /etc/hosts, or see docs/dns.md for a resolver fix")
+	fmt.Println("# armite hosts: append to /etc/hosts, or see docs/dns.md for a resolver fix")
 	for _, n := range names {
 		fmt.Printf("127.0.0.1  %s\n", n)
 	}

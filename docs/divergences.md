@@ -1,4 +1,4 @@
-# Where Provisio differs from Azure
+# Where Armite differs from Azure
 
 Every deliberate difference, grouped by what you touch. Tags:
 _simplification_ (modelled, less faithfully), _deferred_ (not modelled
@@ -13,7 +13,7 @@ limitation_ (unverified against a live subscription), _invention_
   Microsoft's hosts on 443. Every client needs endpoint configuration;
   `*.vault.localhost` resolves under systemd-resolved but needs a hosts
   entry per vault on WSL2, macOS and Windows. _environment_
-- **Private CA.** Clients trust `~/.provisio/ca.pem` explicitly. _environment_
+- **Private CA.** Clients trust `~/.armite/ca.pem` explicitly. _environment_
 - **Instance discovery must be disabled** in every client; the authority
   is not in Entra's instance metadata and MSAL would otherwise ask
   `login.microsoftonline.com` (AADSTS50049). _environment_
@@ -84,7 +84,7 @@ table` fails because the table wants principal names; use `-o json`
   and ignores everything else (az updates with GET and PUT; Terraform
   PATCHes a tag change). Group delete cascades synchronously.
   _simplification_
-- The provider catalogue lists Provisio's namespaces as "Registered"
+- The provider catalogue lists Armite's namespaces as "Registered"
   with the types and api-versions it serves; registration is not
   modelled and locations are nominal. _simplification_
 - The generic resource listing supports `$filter=resourceType eq '…'`
@@ -100,7 +100,7 @@ table` fails because the table wants principal names; use `-o json`
 - Responses carry `x-ms-request-id` and echo `x-ms-client-request-id`
   on every plane; no `x-ms-correlation-request-id` or
   `x-ms-routing-request-id`, and a proxied blob response carries
-  Provisio's id, not Azurite's. _simplification_
+  Armite's id, not Azurite's. _simplification_
 
 ## Key Vault
 
@@ -128,7 +128,7 @@ table` fails because the table wants principal names; use `-o json`
 ## Storage
 
 - **Azurite holds the blobs and validates key-based auth.** Bearer
-  requests are verified and RBAC-checked by Provisio, then re-signed with
+  requests are verified and RBAC-checked by Armite, then re-signed with
   the account key and forwarded; Shared Key and key-signed SAS requests
   pass through and Azurite validates them. _simplification_
 - **Creating, deleting or re-keying an account restarts Azurite** (about
@@ -163,16 +163,16 @@ table` fails because the table wants principal names; use `-o json`
 - **Deleting an account deletes its containers upstream** (best effort),
   so a re-created name starts empty. _simplification_
 - **Azurite's own port (`10000`, loopback) stays reachable** without
-  Provisio in front: anyone on the machine with an account key bypasses
+  Armite in front: anyone on the machine with an account key bypasses
   RBAC there, as the key would anywhere. _accepted limitation_
 - **Blob data is not encrypted at rest** (`state/azurite`), unlike
-  Provisio's own state. _accepted limitation_
+  Armite's own state. _accepted limitation_
 - **Listings keep Azurite's `ServiceEndpoint` value**, not the account's
   URL; no client we ran reads it. _deferred_
 
-## Client caveats (not Provisio's)
+## Client caveats (not Armite's)
 
 - `az keyvault update --set tags.x=y` is broken in az 2.89.1 against
   any cloud; use the explicit flags.
 - The azurerm provider waits about two minutes after creating a public
-  vault, polling its hostname; that is the provider, not Provisio.
+  vault, polling its hostname; that is the provider, not Armite.

@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ioflux-org/provisio/internal/azerr"
-	"github.com/ioflux-org/provisio/internal/config"
-	"github.com/ioflux-org/provisio/internal/entra"
-	"github.com/ioflux-org/provisio/internal/rbac"
+	"github.com/ioflux-org/armite/internal/azerr"
+	"github.com/ioflux-org/armite/internal/config"
+	"github.com/ioflux-org/armite/internal/entra"
+	"github.com/ioflux-org/armite/internal/rbac"
 )
 
 // builtinDefs is parsed once for the package: the seed is 1.6 MB and the

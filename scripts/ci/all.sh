@@ -6,7 +6,7 @@
 # resolving. The server's log is printed when a smoke fails.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
-export CI_DIR="${CI_DIR:-/tmp/provisio-ci}"
+export CI_DIR="${CI_DIR:-/tmp/armite-ci}"
 echo "=== gate"
 test -z "$(gofmt -l ./cmd ./internal)" || { gofmt -l ./cmd ./internal; exit 1; }
 go vet ./...

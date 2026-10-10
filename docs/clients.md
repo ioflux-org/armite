@@ -1,53 +1,53 @@
 # Client setup
 
-Provisio serves `https://management.localhost:8443` (ARM),
+Armite serves `https://management.localhost:8443` (ARM),
 `https://login.localhost:8443` (Entra), `https://{vault}.vault.localhost:8443`
 (Key Vault data plane), `https://{account}.blob.core.localhost:8443` (blob
 data plane) and `http://127.0.0.1:8081` (IMDS). Every client needs three
-things: the hostnames resolving to 127.0.0.1, the CA in `~/.provisio/ca.pem`,
+things: the hostnames resolving to 127.0.0.1, the CA in `~/.armite/ca.pem`,
 and Entra instance discovery disabled.
 
 ## Hosts
 
 Linux with systemd-resolved resolves every `*.localhost` name already;
 WSL2 and macOS need a one-time resolver fix, or the `/etc/hosts` lines
-`provisio hosts` prints. Both are in [dns.md](dns.md).
+`armite hosts` prints. Both are in [dns.md](dns.md).
 
 ## curl
 
 ```bash
-TOKEN=$(curl -s --cacert ~/.provisio/ca.pem \
+TOKEN=$(curl -s --cacert ~/.armite/ca.pem \
   -d 'grant_type=client_credentials&client_id=33333333-3333-3333-3333-333333333333' \
-  -d 'client_secret=provisio-secret&scope=https://management.azure.com/.default' \
+  -d 'client_secret=armite-secret&scope=https://management.azure.com/.default' \
   https://login.localhost:8443/11111111-1111-1111-1111-111111111111/oauth2/v2.0/token \
   | python3 -c 'import json,sys; print(json.load(sys.stdin)["access_token"])')
-curl -s --cacert ~/.provisio/ca.pem -H "Authorization: Bearer $TOKEN" \
+curl -s --cacert ~/.armite/ca.pem -H "Authorization: Bearer $TOKEN" \
   'https://management.localhost:8443/subscriptions?api-version=2022-12-01'
 ```
 
 ## Azure CLI
 
 Use a separate configuration directory so your real login is untouched,
-and re-register the cloud whenever Provisio's endpoints change: `az cloud
+and re-register the cloud whenever Armite's endpoints change: `az cloud
 register` snapshots the endpoints document.
 
 ```bash
-export AZURE_CONFIG_DIR=$HOME/.azure-provisio
-export REQUESTS_CA_BUNDLE=$HOME/.provisio/ca.pem   # replaces the public roots in this shell
-az cloud register -n Provisio --endpoint-resource-manager https://management.localhost:8443
-az cloud set -n Provisio
+export AZURE_CONFIG_DIR=$HOME/.azure-armite
+export REQUESTS_CA_BUNDLE=$HOME/.armite/ca.pem   # replaces the public roots in this shell
+az cloud register -n Armite --endpoint-resource-manager https://management.localhost:8443
+az cloud set -n Armite
 az config set core.instance_discovery=false
 az login --service-principal -u 33333333-3333-3333-3333-333333333333 \
-  -p provisio-secret --tenant 11111111-1111-1111-1111-111111111111
+  -p armite-secret --tenant 11111111-1111-1111-1111-111111111111
 ```
 
 As the managed identity, in another configuration directory:
 
 ```bash
-export AZURE_CONFIG_DIR=$HOME/.azure-provisio-mi
+export AZURE_CONFIG_DIR=$HOME/.azure-armite-mi
 export AZURE_POD_IDENTITY_AUTHORITY_HOST=http://127.0.0.1:8081
-az cloud register -n Provisio --endpoint-resource-manager https://management.localhost:8443
-az cloud set -n Provisio && az config set core.instance_discovery=false
+az cloud register -n Armite --endpoint-resource-manager https://management.localhost:8443
+az cloud set -n Armite && az config set core.instance_discovery=false
 az login --identity
 ```
 
@@ -61,8 +61,8 @@ Create vaults with `--enable-rbac-authorization`.
 export AZURE_AUTHORITY_HOST=https://login.localhost:8443
 export AZURE_TENANT_ID=11111111-1111-1111-1111-111111111111
 export AZURE_CLIENT_ID=33333333-3333-3333-3333-333333333333
-export AZURE_CLIENT_SECRET=provisio-secret
-export NODE_EXTRA_CA_CERTS=$HOME/.provisio/ca.pem   # must be in the process environment, not an env file
+export AZURE_CLIENT_SECRET=armite-secret
+export NODE_EXTRA_CA_CERTS=$HOME/.armite/ca.pem   # must be in the process environment, not an env file
 ```
 
 ```js
@@ -82,7 +82,7 @@ options. Managed identity: `new ManagedIdentityCredential()` with
 
 ```bash
 export AZURE_AUTHORITY_HOST=https://login.localhost:8443
-export REQUESTS_CA_BUNDLE=$HOME/.provisio/ca.pem
+export REQUESTS_CA_BUNDLE=$HOME/.armite/ca.pem
 export AZURE_TENANT_ID=… AZURE_CLIENT_ID=… AZURE_CLIENT_SECRET=…   # as above
 ```
 
@@ -105,7 +105,7 @@ provider "azurerm" {
   subscription_id                 = "22222222-2222-2222-2222-222222222222"
   tenant_id                       = "11111111-1111-1111-1111-111111111111"
   client_id                       = "33333333-3333-3333-3333-333333333333"
-  client_secret                   = "provisio-secret"
+  client_secret                   = "armite-secret"
   use_cli                         = false
   use_msi                         = false
   resource_provider_registrations = "none"
@@ -113,7 +113,7 @@ provider "azurerm" {
 ```
 
 ```bash
-export SSL_CERT_FILE=$HOME/.provisio/ca.pem    # Terraform is a Go program
+export SSL_CERT_FILE=$HOME/.armite/ca.pem    # Terraform is a Go program
 ```
 
 A complete example with the 403 demo is in `examples/terraform`.

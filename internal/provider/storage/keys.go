@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ioflux-org/provisio/internal/state"
+	"github.com/ioflux-org/armite/internal/state"
 )
 
 // storeName names the key store's records in the journal.

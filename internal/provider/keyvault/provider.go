@@ -9,11 +9,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ioflux-org/provisio/internal/azerr"
-	"github.com/ioflux-org/provisio/internal/config"
-	"github.com/ioflux-org/provisio/internal/gateway"
-	"github.com/ioflux-org/provisio/internal/state"
-	"github.com/ioflux-org/provisio/internal/store"
+	"github.com/ioflux-org/armite/internal/azerr"
+	"github.com/ioflux-org/armite/internal/config"
+	"github.com/ioflux-org/armite/internal/gateway"
+	"github.com/ioflux-org/armite/internal/state"
+	"github.com/ioflux-org/armite/internal/store"
 )
 
 // Provider serves the Microsoft.KeyVault namespace.
@@ -58,7 +58,7 @@ func (p *Provider) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			p.serveVaults(w, r, rt.ID)
 		}
 	case "deletedvaults", "managedhsms", "deletedmanagedhsms":
-		// Collections az enumerates next to vaults that Provisio does not
+		// Collections az enumerates next to vaults that Armite does not
 		// model: vault soft delete is not emulated and there are no
 		// managed HSMs. Always empty, so az keyvault list and
 		// list-deleted work and show nothing extra.
@@ -89,7 +89,7 @@ func (p *Provider) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Retry-After", "0")
 		w.WriteHeader(http.StatusAccepted)
 	case "locations/operationresults":
-		// Every operation Provisio ever accepted finished before it answered.
+		// Every operation Armite ever accepted finished before it answered.
 		if r.Method != http.MethodGet {
 			azerr.WriteError(w, http.StatusMethodNotAllowed, azerr.CodeMethodNotAllowed,
 				"The method '"+r.Method+"' is not allowed on '"+chain+"'.")

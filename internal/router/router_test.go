@@ -5,7 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/ioflux-org/provisio/internal/config"
+	"github.com/ioflux-org/armite/internal/config"
 )
 
 // plane returns a handler that identifies itself, so dispatch can be

@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/ioflux-org/provisio/internal/azerr"
-	"github.com/ioflux-org/provisio/internal/rbac"
+	"github.com/ioflux-org/armite/internal/azerr"
+	"github.com/ioflux-org/armite/internal/rbac"
 )
 
 // Authorizer answers "may this principal do this" with the M2 evaluator.
@@ -22,7 +22,7 @@ func NewAuthorizer(checker *rbac.Checker) *Authorizer {
 
 // discoveryActions are the tenant-root listings every authenticated
 // caller may perform. Real ARM does not authorize these at scope "/"
-// either - it returns the subset the caller can access. Provisio has one
+// either - it returns the subset the caller can access. Armite has one
 // subscription and one tenant; M3f decides whether to filter.
 var discoveryActions = map[string]bool{
 	"microsoft.resources/subscriptions/read": true,

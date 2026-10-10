@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ioflux-org/provisio/internal/config"
+	"github.com/ioflux-org/armite/internal/config"
 )
 
 // fakeAzurite is the slice of the Blob service the management plane

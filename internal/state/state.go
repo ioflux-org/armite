@@ -87,7 +87,7 @@ func Open(dir string, key []byte, compactAfter int64) (*Log, error) {
 // OpenReadOnly prepares an existing dir for Replay and nothing else:
 // nothing is created, a torn tail is left for the server that owns the
 // journal to cut, and Append fails. It is for a command that reads the
-// state beside a running server, such as "provisio hosts".
+// state beside a running server, such as "armite hosts".
 func OpenReadOnly(dir string, key []byte) (*Log, error) {
 	aead, err := newAEAD(key)
 	if err != nil {

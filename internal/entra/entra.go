@@ -6,7 +6,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/ioflux-org/provisio/internal/config"
+	"github.com/ioflux-org/armite/internal/config"
 )
 
 type discoveryDocument struct {

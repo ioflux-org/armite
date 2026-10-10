@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ioflux-org/provisio/internal/state"
+	"github.com/ioflux-org/armite/internal/state"
 )
 
 func ver(version, value string) secretVersion {

@@ -1,6 +1,6 @@
-# Contributing to Provisio
+# Contributing to Armite
 
-Thank you for considering a contribution. Provisio is small enough that
+Thank you for considering a contribution. Armite is small enough that
 one person can hold the whole design in their head, and it is meant to
 stay that way: every change should be understandable by reading the
 code and the tests, without a conversation.
@@ -10,10 +10,10 @@ code and the tests, without a conversation.
 - Bug reports with the client that produced them: the `az --debug`
   excerpt, the SDK call, or the Terraform resource. The request that
   failed is the specification.
-- Fidelity fixes: places where Provisio answers differently from Azure
+- Fidelity fixes: places where Armite answers differently from Azure
   in a way a real client notices. Say which client noticed.
 - New services, discussed in an issue first. A provider is a package
-  under `internal/provider` registered in `cmd/provisio/main.go`; the
+  under `internal/provider` registered in `cmd/armite/main.go`; the
   Key Vault provider is the template.
 
 ## Ground rules
@@ -70,7 +70,7 @@ offer a commercial edition. Please read it; it is short.
 "Contribution" means any original work of authorship, including
 modifications to existing work, that You intentionally submit to the
 Project in any form, excluding anything conspicuously marked "Not a
-Contribution". "Project" means Provisio and its documentation. "Maintainer"
+Contribution". "Project" means Armite and its documentation. "Maintainer"
 means Agnivesh Chaubey, the maintainer of the Project, and any successor
 organisation that takes over ownership of the Project, which will be
 announced in this file.
@@ -129,7 +129,7 @@ an issue titled "CCLA request" and the Maintainer will send it.
 
 ## Reporting a security issue
 
-Provisio mints tokens and evaluates authorization, so a bug in either
+Armite mints tokens and evaluates authorization, so a bug in either
 matters even though it only ever runs locally. Please report security
 issues privately to the Maintainer (contact in the repository profile)
 rather than in a public issue, and allow a fix before disclosure.

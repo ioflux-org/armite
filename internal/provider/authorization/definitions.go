@@ -5,9 +5,9 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/ioflux-org/provisio/internal/azerr"
-	"github.com/ioflux-org/provisio/internal/gateway"
-	"github.com/ioflux-org/provisio/internal/rbac"
+	"github.com/ioflux-org/armite/internal/azerr"
+	"github.com/ioflux-org/armite/internal/gateway"
+	"github.com/ioflux-org/armite/internal/rbac"
 )
 
 // definition is the Role Definitions API resource (api-version

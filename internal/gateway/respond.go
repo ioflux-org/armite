@@ -5,7 +5,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/ioflux-org/provisio/internal/azerr"
+	"github.com/ioflux-org/armite/internal/azerr"
 )
 
 // WriteJSON writes v as the JSON body of a response with the given

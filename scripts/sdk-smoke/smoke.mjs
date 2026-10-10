@@ -4,7 +4,7 @@ const cred = new ClientSecretCredential(
     process.env.AZURE_TENANT_ID,
     process.env.AZURE_CLIENT_ID,
     process.env.AZURE_CLIENT_SECRET,
-    // Provisio's host isn't on MSAL's well-known list; without this MSAL asks
+    // Armite's host isn't on MSAL's well-known list; without this MSAL asks
     // login.microsoftonline.com to vouch for it and gets invalid_instance.
     {disableInstanceDiscovery: true}
 )

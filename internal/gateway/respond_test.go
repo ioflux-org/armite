@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/ioflux-org/provisio/internal/azerr"
+	"github.com/ioflux-org/armite/internal/azerr"
 )
 
 func TestWriteJSON(t *testing.T) {

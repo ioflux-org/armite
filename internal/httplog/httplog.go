@@ -2,7 +2,7 @@
 //
 // Azure answers every call with an x-ms-request-id, the handle a client
 // quotes when something went wrong and the one thing that ties its error
-// to a line in the service's log. Provisio does the same: the id is
+// to a line in the service's log. Armite does the same: the id is
 // minted before the handler runs and sits on the response from the
 // start, and when the handler returns, one structured line records what
 // happened to the request - plane, method, path, status, duration and the

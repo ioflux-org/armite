@@ -1,6 +1,6 @@
 # Hostnames
 
-Every client talks to Provisio by hostname, the way it talks to Azure:
+Every client talks to Armite by hostname, the way it talks to Azure:
 `management.localhost` and `login.localhost` for ARM and Entra, one
 hostname per vault (`kv-demo.vault.localhost`) and per storage account
 (`stdemo.blob.core.localhost`, plus the `queue.` and `table.` twins
@@ -37,12 +37,12 @@ exists, the queue and table twins included for Terraform — and it works
 beside a running server:
 
 ```bash
-provisio hosts                       # or: go run ./cmd/provisio hosts
-provisio hosts | sudo tee -a /etc/hosts
+armite hosts                       # or: go run ./cmd/armite hosts
+armite hosts | sudo tee -a /etc/hosts
 ```
 
 ```text
-# provisio hosts: append to /etc/hosts, or see docs/dns.md for a resolver fix
+# armite hosts: append to /etc/hosts, or see docs/dns.md for a resolver fix
 127.0.0.1  management.localhost
 127.0.0.1  login.localhost
 127.0.0.1  kv-demo.vault.localhost
@@ -70,6 +70,6 @@ The certificate follows the configuration, so nothing else changes.
 ## Docker
 
 A client in another container does not share the host's resolver. Put it
-on the same compose network as Provisio and give it the names as
-`extra_hosts` entries pointing at the `provisio` service, one per vault
+on the same compose network as Armite and give it the names as
+`extra_hosts` entries pointing at the `armite` service, one per vault
 or account, or run a resolver in the network.

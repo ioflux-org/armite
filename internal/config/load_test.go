@@ -14,7 +14,7 @@ const testStateKey = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
 
 func writeYAML(t *testing.T, body string) string {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "provisio.yaml")
+	path := filepath.Join(t.TempDir(), "armite.yaml")
 	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -64,10 +64,10 @@ managed_identity:
 
 func TestLoadEnvAfterFile(t *testing.T) {
 	path := writeYAML(t, "listener_addr: 127.0.0.1:9443\nstate:\n  dir: /tmp/a\n")
-	t.Setenv("PROVISIO_LISTEN_ADDR", "0.0.0.0:9443")
-	t.Setenv("PROVISIO_STATE_DIR", "/tmp/b")
-	t.Setenv("PROVISIO_STATE_KEY", testStateKey)
-	t.Setenv("PROVISIO_LOG_FORMAT", "json")
+	t.Setenv("ARMITE_LISTEN_ADDR", "0.0.0.0:9443")
+	t.Setenv("ARMITE_STATE_DIR", "/tmp/b")
+	t.Setenv("ARMITE_STATE_KEY", testStateKey)
+	t.Setenv("ARMITE_LOG_FORMAT", "json")
 	got, err := Load(path)
 	if err != nil || got.ListenerAddr != "0.0.0.0:9443" {
 		t.Errorf("env must win over the file: %q, %v", got.ListenerAddr, err)
@@ -141,13 +141,13 @@ func TestRedactedAndYAMLRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("YAML() must be loadable: %v", err)
 	}
-	if got.Clients[0].Secret != "provisio-secret" {
+	if got.Clients[0].Secret != "armite-secret" {
 		t.Error("round trip lost the secret")
 	}
 	withKey := Default()
 	withKey.State.Key = testStateKey
 	red, _ := withKey.Redacted().YAML()
-	if strings.Contains(string(red), "provisio-secret") ||
+	if strings.Contains(string(red), "armite-secret") ||
 		strings.Contains(string(red), testStateKey) || strings.Count(string(red), "***") != 2 {
 		t.Errorf("Redacted must mask the client secret and the state key:\n%s", red)
 	}
@@ -173,7 +173,7 @@ func TestTemplateIsCommentedAndLoadable(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := string(out)
-	wants := []string{"# Provisio configuration", "# Owner", "# Contributor", "role_assignments:",
+	wants := []string{"# Armite configuration", "# Owner", "# Contributor", "role_assignments:",
 		"# Where resources, role assignments and secrets persist", "compact_after_mb: 8",
 		"blob_host: blob.core.localhost", "# The blob store behind storage accounts", "mode: managed",
 		"# text: one line per message", "format: text"}

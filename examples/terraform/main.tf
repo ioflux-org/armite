@@ -1,4 +1,4 @@
-# Provisio's built-in principal and subscription (config.Default()): a
+# Armite's built-in principal and subscription (config.Default()): a
 # documented contract, not placeholders. The principal is Owner of the
 # subscription on the management plane and holds nothing on the data
 # plane until a role assignment says so.
@@ -11,7 +11,7 @@ provider "azurerm" {
   subscription_id                 = "22222222-2222-2222-2222-222222222222"
   tenant_id                       = "11111111-1111-1111-1111-111111111111"
   client_id                       = "33333333-3333-3333-3333-333333333333"
-  client_secret                   = "provisio-secret"
+  client_secret                   = "armite-secret"
   use_cli                         = false
   use_msi                         = false
   resource_provider_registrations = "none"
@@ -37,7 +37,7 @@ resource "azurerm_key_vault" "demo" {
 
   # With public access on, the provider polls the vault host for about two
   # minutes after creation before it calls the vault available - the same
-  # wait as against real Azure. Off skips it; Provisio enforces neither.
+  # wait as against real Azure. Off skips it; Armite enforces neither.
   public_network_access_enabled = var.public_vault
 }
 

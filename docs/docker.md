@@ -1,21 +1,21 @@
-# Running Provisio in Docker
+# Running Armite in Docker
 
 ## Build
 
 ```bash
-docker build -t provisio:dev .
+docker build -t armite:dev .
 ```
 
 Multi-stage: a static Go binary on `node:22-alpine` with Azurite
 installed, running as the image's non-root `node` user. About 110 MB to
 pull; `docker images` reports about 680 MB unpacked, most of it
 Azurite's dependencies. Node is there because storage accounts are
-served by Azurite, a Node program Provisio starts inside the container;
+served by Azurite, a Node program Armite starts inside the container;
 nothing to install.
 
 ## Run
 
-`/data` is the server's home directory (`PROVISIO_HOME`): the CA, leaf
+`/data` is the server's home directory (`ARMITE_HOME`): the CA, leaf
 certificate, signing key and state key generated at first boot, and -
 because an explicit home is self-contained - `state/` with everything
 created through the API. Mount a host
@@ -23,16 +23,16 @@ directory on it so you can read `ca.pem` and keep your resources across
 runs, and run as your own user so the files are yours:
 
 ```bash
-mkdir -p provisio-data
-docker run --rm --name provisio \
+mkdir -p armite-data
+docker run --rm --name armite \
   --user "$(id -u):$(id -g)" \
   -p 127.0.0.1:8443:8443 -p 127.0.0.1:8081:8081 \
-  -v "$PWD/provisio-data:/data" \
-  provisio:dev
+  -v "$PWD/armite-data:/data" \
+  armite:dev
 ```
 
 The CA is generated once and reused on every start, so trust it once
-(`provisio-data/ca.pem`). `8443` serves ARM, the login endpoint, every
+(`armite-data/ca.pem`). `8443` serves ARM, the login endpoint, every
 vault and every storage account; `8081` is IMDS for managed-identity
 clients. The state files are encrypted with `state.key` next to them;
 delete `state/` alone to start over with the same CA, the whole
@@ -44,36 +44,36 @@ A configuration file goes where the server looks for it, the home
 directory:
 
 ```bash
-docker run --rm --name provisio \
+docker run --rm --name armite \
   --user "$(id -u):$(id -g)" \
   -p 127.0.0.1:8443:8443 -p 127.0.0.1:8081:8081 \
-  -v "$PWD/provisio-data:/data" \
-  -v "$PWD/provisio.yaml:/data/provisio.yaml:ro" \
-  provisio:dev
+  -v "$PWD/armite-data:/data" \
+  -v "$PWD/armite.yaml:/data/armite.yaml:ro" \
+  armite:dev
 ```
 
 ### With compose
 
 ```bash
 docker compose up -d
-docker compose cp provisio:/data/ca.pem ./ca.pem
+docker compose cp armite:/data/ca.pem ./ca.pem
 ```
 
-The directory is a named volume, `provisio_data`. To start over but
+The directory is a named volume, `armite_data`. To start over but
 keep the CA, stop the stack and empty the state inside it; `docker
 compose down -v` removes the volume and starts over completely:
 
 ```bash
 docker compose stop
-docker run --rm -v provisio_data:/data alpine rm -rf /data/state
+docker run --rm -v armite_data:/data alpine rm -rf /data/state
 docker compose start
 ```
 
 ## Reaching it
 
-Every client talks to Provisio by hostname, so the hostnames must
+Every client talks to Armite by hostname, so the hostnames must
 resolve to the host the ports are published on - a resolver fix, or the
-`/etc/hosts` lines `docker compose exec provisio /app/provisio hosts`
+`/etc/hosts` lines `docker compose exec armite /app/armite hosts`
 prints, see [dns.md](dns.md). Then trust the CA, per client:
 
 | client                         | how                                                                                |
@@ -89,13 +89,13 @@ Managed-identity clients set `AZURE_POD_IDENTITY_AUTHORITY_HOST=http://127.0.0.1
 
 | variable               | default                              | image                          |
 | ---------------------- | ------------------------------------ | ------------------------------ |
-| `PROVISIO_LISTEN_ADDR` | `127.0.0.1:8443`                     | `0.0.0.0:8443`                 |
-| `PROVISIO_IMDS_ADDR`   | `127.0.0.1:8081`                     | `0.0.0.0:8081`                 |
-| `PROVISIO_HOME`        | `~/.provisio`                        | `/data`                        |
-| `PROVISIO_STATE_DIR`   | the data directory (see config.md)   | unset (`/data/state`)          |
-| `PROVISIO_STATE_KEY`   | unset (generated into the cert dir)  | unset                          |
-| `PROVISIO_CONFIG`      | unset (`./provisio.yaml` if present) | unset; mount a file and set it |
-| `PROVISIO_LOG_FORMAT`  | `text`                               | unset; `json` for a collector  |
+| `ARMITE_LISTEN_ADDR` | `127.0.0.1:8443`                     | `0.0.0.0:8443`                 |
+| `ARMITE_IMDS_ADDR`   | `127.0.0.1:8081`                     | `0.0.0.0:8081`                 |
+| `ARMITE_HOME`        | `~/.armite`                        | `/data`                        |
+| `ARMITE_STATE_DIR`   | the data directory (see config.md)   | unset (`/data/state`)          |
+| `ARMITE_STATE_KEY`   | unset (generated into the cert dir)  | unset                          |
+| `ARMITE_CONFIG`      | unset (`./armite.yaml` if present) | unset; mount a file and set it |
+| `ARMITE_LOG_FORMAT`  | `text`                               | unset; `json` for a collector  |
 
 The image binds all interfaces because Docker's published ports cannot
 reach a container's loopback interface; publish on `127.0.0.1` as above
@@ -106,5 +106,5 @@ hostnames and the vault suffix do not change with the bind address.
 
 A client container does not share the host's `/etc/hosts` or port
 publishing. Put both on the same compose network and add the hostnames
-as `extra_hosts` entries pointing at the `provisio` service, and mount
+as `extra_hosts` entries pointing at the `armite` service, and mount
 the CA the same way.

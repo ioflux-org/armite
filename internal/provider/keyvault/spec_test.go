@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/ioflux-org/provisio/internal/spectest"
+	"github.com/ioflux-org/armite/internal/spectest"
 )
 
 // TestResponsesMatchSpec checks the shapes this provider emits against

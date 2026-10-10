@@ -1,7 +1,7 @@
 import { ManagedIdentityCredential } from "@azure/identity";
 
 // No tenant, client id or secret: the platform is the credential. Locally the
-// "platform" is Provisio's IMDS listener, reached via AZURE_POD_IDENTITY_AUTHORITY_HOST.
+// "platform" is Armite's IMDS listener, reached via AZURE_POD_IDENTITY_AUTHORITY_HOST.
 const cred = new ManagedIdentityCredential();
 
 const tok = await cred.getToken("https://management.azure.com/.default");

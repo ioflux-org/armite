@@ -8,16 +8,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ioflux-org/provisio/internal/azurite"
+	"github.com/ioflux-org/armite/internal/azurite"
 )
 
 // azuriteCommand is the azurite-blob executable the integration tests
 // drive; without it they are skipped.
 func azuriteCommand(t *testing.T) string {
 	t.Helper()
-	cmd := os.Getenv("PROVISIO_AZURITE")
+	cmd := os.Getenv("ARMITE_AZURITE")
 	if cmd == "" {
-		t.Skip("set PROVISIO_AZURITE to the azurite-blob executable to run this test")
+		t.Skip("set ARMITE_AZURITE to the azurite-blob executable to run this test")
 	}
 	return cmd
 }

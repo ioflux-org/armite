@@ -5,7 +5,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/ioflux-org/provisio/internal/azerr"
+	"github.com/ioflux-org/armite/internal/azerr"
 )
 
 // Registry is the pipeline's terminal: it hands a routed request to the
@@ -15,7 +15,7 @@ import (
 type Registry struct {
 	providers map[string]http.Handler // key: lowercase namespace
 	names     []string                // namespaces as registered, for the catalogue
-	disabled  map[string]bool         // namespaces Provisio knows but does not serve
+	disabled  map[string]bool         // namespaces Armite knows but does not serve
 }
 
 // NewRegistry returns an empty registry. Until a provider registers,
@@ -38,7 +38,7 @@ func (reg *Registry) Register(namespace string, h http.Handler) {
 	reg.names = append(reg.names, namespace)
 }
 
-// Disable records a namespace Provisio implements but is not serving in
+// Disable records a namespace Armite implements but is not serving in
 // this configuration (storage without an Azurite, say). Its requests get
 // ARM's own answer for a provider the subscription has not registered,
 // MissingSubscriptionRegistration, which is how real Azure says "this
@@ -64,7 +64,7 @@ func (reg *Registry) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if reg.disabled[strings.ToLower(rt.ID.Namespace)] {
 			azerr.WriteError(w, http.StatusConflict, azerr.CodeMissingSubscriptionRegistration,
 				"The subscription is not registered to use namespace '"+rt.ID.Namespace+"'. "+
-					"This Provisio runs without it; see docs/storage.md.")
+					"This Armite runs without it; see docs/storage.md.")
 			return
 		}
 		azerr.WriteError(w, http.StatusNotFound, azerr.CodeInvalidResourceNamespace,

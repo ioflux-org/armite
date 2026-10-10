@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ioflux-org/provisio/internal/azerr"
-	"github.com/ioflux-org/provisio/internal/config"
-	"github.com/ioflux-org/provisio/internal/entra"
+	"github.com/ioflux-org/armite/internal/azerr"
+	"github.com/ioflux-org/armite/internal/config"
+	"github.com/ioflux-org/armite/internal/entra"
 )
 
 // Authenticator turns a bearer token into a Principal, or answers 401.

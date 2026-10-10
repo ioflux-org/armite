@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ioflux-org/provisio/internal/state"
+	"github.com/ioflux-org/armite/internal/state"
 )
 
 const testPrincipal = "44444444-4444-4444-4444-444444444444"

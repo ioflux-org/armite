@@ -1,5 +1,6 @@
 # Binaries
 /provisio*
+/armite*
 /bin/
 *.exe
 
@@ -31,7 +32,7 @@ state/
 progress/
 research/
 
-/cmd/provisio/provisio
+/cmd/armite/armite
 data/
 node_modules/
 .claude/

@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ioflux-org/provisio/internal/config"
+	"github.com/ioflux-org/armite/internal/config"
 )
 
 var testKey = mustTestKey()

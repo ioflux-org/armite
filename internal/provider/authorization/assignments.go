@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ioflux-org/provisio/internal/azerr"
-	"github.com/ioflux-org/provisio/internal/gateway"
-	"github.com/ioflux-org/provisio/internal/rbac"
+	"github.com/ioflux-org/armite/internal/azerr"
+	"github.com/ioflux-org/armite/internal/gateway"
+	"github.com/ioflux-org/armite/internal/rbac"
 )
 
 // maxBodyBytes bounds a PUT body: three properties, never more.
@@ -203,7 +203,7 @@ func (p *Provider) assignmentLookupError(w http.ResponseWriter, name string, err
 
 // assignmentFilterRe accepts the terms az combines with "and":
 // atScope(), principalId eq '…' and assignedTo('…') (which would also
-// expand groups; Provisio has none, so it is principalId eq).
+// expand groups; Armite has none, so it is principalId eq).
 var (
 	andRe          = regexp.MustCompile(`(?i)\s+and\s+`)
 	principalEqRe  = regexp.MustCompile(`(?i)^principalId\s+eq\s+'([^']*)'$`)
@@ -213,7 +213,7 @@ var (
 
 // parseAssignmentFilter returns whether descendants are excluded and
 // which principal to keep ("" for all). ok is false for a filter
-// Provisio does not understand.
+// Armite does not understand.
 func parseAssignmentFilter(filter string) (atScope bool, principal string, ok bool) {
 	filter = strings.TrimSpace(filter)
 	if filter == "" {

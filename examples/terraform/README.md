@@ -1,13 +1,13 @@
-# Terraform against Provisio
+# Terraform against Armite
 
 The azurerm provider, unmodified, creating a resource group, a Key Vault,
 a storage account, two role assignments, a secret, a container and a
-blob in Provisio - and being refused the secret and the blob until the
+blob in Armite - and being refused the secret and the blob until the
 role assignments exist.
 
 ## Prerequisites
 
-1. **Provisio running** from the repository root: `go run ./cmd/provisio`.
+1. **Armite running** from the repository root: `go run ./cmd/armite`.
 2. **Hosts entries** (`/etc/hosts`; WSL2 regenerates the file unless
    `generateHosts = false` is set in `/etc/wsl.conf`):
 
@@ -28,7 +28,7 @@ role assignments exist.
    so no system-wide install is needed:
 
    ```bash
-   export SSL_CERT_FILE=$HOME/.provisio/ca.pem
+   export SSL_CERT_FILE=$HOME/.armite/ca.pem
    ```
 
 4. **Terraform 1.5 or newer** (`terraform version`).
@@ -71,20 +71,20 @@ in the state; the next apply adds the assignment and the secret or the
 blob. `terraform destroy` removes everything, purging the vault on the
 way as the provider does by default.
 
-## How the provider is pointed at Provisio
+## How the provider is pointed at Armite
 
 `metadata_host` makes the provider read `https://management.localhost:8443/
 metadata/endpoints`, the same document `az cloud register` reads, and
 learn the login endpoint, the ARM endpoint and the vault DNS suffix from
-it. The credentials in `main.tf` are Provisio's built-in principal
+it. The credentials in `main.tf` are Armite's built-in principal
 (`config.Default()`), a documented contract. `use_cli = false` stops the
 provider from consulting an az login; `resource_provider_registrations =
-"none"` stops it from registering providers, which Provisio does not
+"none"` stops it from registering providers, which Armite does not
 model (they are all reported as registered).
 
 ## Timing
 
-Provisio answers every call at once; the durations are the provider's
+Armite answers every call at once; the durations are the provider's
 own pollers: about 20 s for the resource group and each role
 assignment, about 20 s to soft-delete and purge the secret, about a
 minute for the storage account (the provider waits for the blob, queue,

@@ -57,8 +57,8 @@ func EnsureCA(dir string) (*x509.Certificate, *ecdsa.PrivateKey, error) {
 	tmpl := &x509.Certificate{
 		SerialNumber: serial,
 		Subject: pkix.Name{
-			CommonName:   "Provisio Local CA",
-			Organization: []string{"Provisio"},
+			CommonName:   "Armite Local CA",
+			Organization: []string{"Armite"},
 		},
 		NotBefore:             time.Now().Add(-time.Hour),
 		NotAfter:              time.Now().AddDate(10, 0, 0),
@@ -95,7 +95,7 @@ func IssueLeaf(caCert *x509.Certificate, caKey *ecdsa.PrivateKey, hosts []string
 	}
 	tmpl := &x509.Certificate{
 		SerialNumber: serial,
-		Subject:      pkix.Name{CommonName: "provisio"},
+		Subject:      pkix.Name{CommonName: "armite"},
 		NotBefore:    time.Now().Add(-time.Hour),
 		NotAfter:     time.Now().AddDate(1, 0, 0),
 		KeyUsage:     x509.KeyUsageDigitalSignature,

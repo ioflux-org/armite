@@ -8,5 +8,5 @@ node_modules
 examples/terraform/.terraform
 *.tfstate
 *.tfstate.backup
-provisio-*-check
-/provisio
+armite-*-check
+/armite

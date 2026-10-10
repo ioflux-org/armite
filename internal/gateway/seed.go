@@ -1,8 +1,8 @@
 package gateway
 
 import (
-	"github.com/ioflux-org/provisio/internal/config"
-	"github.com/ioflux-org/provisio/internal/rbac"
+	"github.com/ioflux-org/armite/internal/config"
+	"github.com/ioflux-org/armite/internal/rbac"
 )
 
 // SeedAssignments converts the configured boot-time grants into rbac

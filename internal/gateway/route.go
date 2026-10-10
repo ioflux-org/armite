@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"regexp"
 
-	"github.com/ioflux-org/provisio/internal/arm"
-	"github.com/ioflux-org/provisio/internal/azerr"
+	"github.com/ioflux-org/armite/internal/arm"
+	"github.com/ioflux-org/armite/internal/azerr"
 )
 
 // Route is what the pipeline learned about a request from its URL and
@@ -33,7 +33,7 @@ func RouteFromContext(ctx context.Context) (Route, bool) {
 }
 
 // apiVersionRe accepts ARM's date-based versions, with or without a
-// suffix such as -preview. Any well-formed version passes: Provisio keeps
+// suffix such as -preview. Any well-formed version passes: Armite keeps
 // no per-provider version matrix.
 var apiVersionRe = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}(-[a-z]+)?$`)
 

@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
-# Builds Provisio and runs it in the background for the smoke scripts,
+# Builds Armite and runs it in the background for the smoke scripts,
 # with a home directory of its own so nothing of the developer's is
 # touched: ./scripts/ci/server.sh start | reset | stop. reset restarts
 # it on an empty state with the same CA - each smoke creates the same
 # vault and storage account, so each gets a fresh one. CI_DIR holds the
-# binary, the home and server.log (default: /tmp/provisio-ci).
+# binary, the home and server.log (default: /tmp/armite-ci).
 set -euo pipefail
-CI_DIR="${CI_DIR:-/tmp/provisio-ci}"
-export PROVISIO_HOME="$CI_DIR/home"
+CI_DIR="${CI_DIR:-/tmp/armite-ci}"
+export ARMITE_HOME="$CI_DIR/home"
 
 start() {
     mkdir -p "$CI_DIR"
-    [ -x "$CI_DIR/provisio" ] || go build -o "$CI_DIR/provisio" ./cmd/provisio
-    "$CI_DIR/provisio" >> "$CI_DIR/server.log" 2>&1 &
+    [ -x "$CI_DIR/armite" ] || go build -o "$CI_DIR/armite" ./cmd/armite
+    "$CI_DIR/armite" >> "$CI_DIR/server.log" 2>&1 &
     echo $! > "$CI_DIR/server.pid"
     for _ in $(seq 1 60); do
         grep -q 'Serving https' "$CI_DIR/server.log" 2>/dev/null && break
@@ -24,7 +24,7 @@ start() {
     if grep -q 'Microsoft.Storage disabled' "$CI_DIR/server.log"; then
         echo "azurite-blob is not on PATH: npm install -g azurite" >&2; exit 1
     fi
-    echo "serving; CA at $PROVISIO_HOME/ca.pem, log at $CI_DIR/server.log"
+    echo "serving; CA at $ARMITE_HOME/ca.pem, log at $CI_DIR/server.log"
 }
 
 stop() {
@@ -40,7 +40,7 @@ start) start ;;
 stop) stop ;;
 reset)
     stop
-    rm -rf "$PROVISIO_HOME/state"
+    rm -rf "$ARMITE_HOME/state"
     : > "$CI_DIR/server.log"
     start
     ;;

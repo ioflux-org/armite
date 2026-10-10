@@ -3,9 +3,9 @@
 # example directory stays clean: the apply without the data roles must
 # fail on the secret and the blob, the apply with them must succeed,
 # and destroy must remove everything. About five minutes: the azurerm
-# provider's own pollers, not Provisio.
+# provider's own pollers, not Armite.
 set -euo pipefail
-CI_DIR="${CI_DIR:-/tmp/provisio-ci}"
+CI_DIR="${CI_DIR:-/tmp/armite-ci}"
 export SSL_CERT_FILE="$CI_DIR/home/ca.pem"
 rm -rf "$CI_DIR/tf" && cp -r examples/terraform "$CI_DIR/tf" && cd "$CI_DIR/tf"
 terraform init -input=false >/dev/null

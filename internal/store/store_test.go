@@ -10,7 +10,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/ioflux-org/provisio/internal/state"
+	"github.com/ioflux-org/armite/internal/state"
 )
 
 const (

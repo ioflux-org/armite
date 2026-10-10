@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/ioflux-org/provisio/internal/config"
-	"github.com/ioflux-org/provisio/internal/rbac"
+	"github.com/ioflux-org/armite/internal/config"
+	"github.com/ioflux-org/armite/internal/rbac"
 )
 
 // Gateway is the management-plane handler: the ARM request pipeline,

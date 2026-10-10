@@ -1,4 +1,4 @@
-// The demo Provisio exists for, driven by the real Azure SDK: an Owner
+// The demo Armite exists for, driven by the real Azure SDK: an Owner
 // creates a vault through ARM, cannot read or write a secret in it, grants
 // itself Key Vault Secrets Officer, can, and loses the access again the
 // moment the assignment is deleted. Exits non-zero on any mismatch.

@@ -31,7 +31,7 @@ var storageNamePattern = regexp.MustCompile(`^[a-z0-9]{3,24}$`)
 // a list that is present replaces the default list), then the
 // environment, then validation. An empty path means "defaults only".
 // Unknown keys are errors, reported with their line and a snippet: a
-// typo in provisio.yaml should stop the boot, not silently keep a
+// typo in armite.yaml should stop the boot, not silently keep a
 // default.
 func Load(path string) (Config, error) {
 	cfg := Default()
@@ -252,8 +252,8 @@ func encode(v any) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// Template renders the defaults as a commented provisio.yaml: what
-// "provisio config init" writes. The comments are the documentation a
+// Template renders the defaults as a commented armite.yaml: what
+// "armite config init" writes. The comments are the documentation a
 // user has in front of them while editing, which is where it is read.
 func Template() ([]byte, error) {
 	var doc yaml.Node
@@ -261,10 +261,10 @@ func Template() ([]byte, error) {
 		return nil, err
 	}
 	notes := []struct{ path, head, line string }{
-		{"tenant_id", "Provisio configuration. Every key is optional: delete the ones you do not\n" +
+		{"tenant_id", "Armite configuration. Every key is optional: delete the ones you do not\n" +
 			"change and their defaults apply. A list you keep (clients, role_assignments)\n" +
 			"replaces the default list. Unknown keys stop the boot.\n\n" +
-			"The one tenant and subscription Provisio serves.", ""},
+			"The one tenant and subscription Armite serves.", ""},
 		{"listener_addr", "", "ARM, login and every vault; the port is part of every URL"},
 		{"arm_host", "Bare hostnames; each must resolve to this machine (see docs/clients.md).", ""},
 		{"vault_host", "", "vaults are {name}.vault_host"},
@@ -280,18 +280,18 @@ func Template() ([]byte, error) {
 		{"role_assignments.0.role_definition_id", "", "Owner"},
 		{"role_assignments.1.role_definition_id", "", "Contributor"},
 		{"state", "Where resources, role assignments and secrets persist across restarts:\n" +
-			"your data directory by default (~/.local/share/provisio on Linux, Library/\n" +
-			"Application Support on macOS, %LOCALAPPDATA% on Windows; $PROVISIO_HOME/state\n" +
-			"when PROVISIO_HOME is set); a relative dir is resolved from the directory the\n" +
+			"your data directory by default (~/.local/share/armite on Linux, Library/\n" +
+			"Application Support on macOS, %LOCALAPPDATA% on Windows; $ARMITE_HOME/state\n" +
+			"when ARMITE_HOME is set); a relative dir is resolved from the directory the\n" +
 			"server runs in (./state keeps a project's data next to it); empty keeps\n" +
 			"everything in memory. The journal is folded into the\n" +
 			"snapshot past compact_after_mb (0: never). The files are encrypted with key,\n" +
 			"a base64 32-byte value (openssl rand -base64 32); leave it empty and one is\n" +
 			"generated into the certificate directory on first boot. Without the key the\n" +
 			"state directory cannot be read.", ""},
-		{"azurite", "The blob store behind storage accounts. managed: Provisio starts command\n" +
+		{"azurite", "The blob store behind storage accounts. managed: Armite starts command\n" +
 			"(azurite-blob from npm, on PATH) on port, with the accounts it creates, and\n" +
-			"keeps its data under the state directory. byo: Provisio forwards to upstream,\n" +
+			"keeps its data under the state directory. byo: Armite forwards to upstream,\n" +
 			"an Azurite you run; list the accounts and keys it was started with. off: no\n" +
 			"storage accounts.", ""},
 		{"log", "text: one line per message, for a terminal. json: one object per line, for\n" +

@@ -1,4 +1,4 @@
-module github.com/ioflux-org/provisio
+module github.com/ioflux-org/armite
 
 go 1.26.2
 

@@ -41,7 +41,7 @@ const (
 // parseOperation classifies a request by method, path and the restype
 // and comp query parameters, following the Blob service's "permissions
 // for calling data operations" table. Unknown shapes are refused rather
-// than guessed: a request Provisio cannot name, it does not forward.
+// than guessed: a request Armite cannot name, it does not forward.
 func parseOperation(method string, u *url.URL) (operation, bool) {
 	q := u.Query()
 	restype, comp := strings.ToLower(q.Get("restype")), strings.ToLower(q.Get("comp"))

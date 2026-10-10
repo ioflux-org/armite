@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/ioflux-org/provisio/internal/azerr"
-	"github.com/ioflux-org/provisio/internal/config"
+	"github.com/ioflux-org/armite/internal/azerr"
+	"github.com/ioflux-org/armite/internal/config"
 )
 
 // endpointsDocument is the cloud description ARM serves anonymously at
@@ -34,7 +34,7 @@ type authentication struct {
 // vault name, so the suffix carries the port.
 func endpointsFor(cfg config.Config) endpointsDocument {
 	return endpointsDocument{
-		Name: "Provisio",
+		Name: "Armite",
 		Authentication: authentication{
 			LoginEndpoint:    cfg.LoginBaseURL() + "/",
 			Audiences:        []string{strings.TrimSuffix(cfg.ARMAudience, "/") + "/"},
@@ -59,7 +59,7 @@ func endpointsFor(cfg config.Config) endpointsDocument {
 // serveEndpoints answers GET /metadata/endpoints. api-version 2022-09-01
 // is this cloud's document (az cloud register, Terraform); 2019-05-01 is
 // the same document in a list, the shape ARM_CLOUD_METADATA_URL expects.
-// Any other well-formed version gets the single document: Provisio
+// Any other well-formed version gets the single document: Armite
 // keeps no version matrix here either.
 func serveEndpoints(cfg config.Config) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/ioflux-org/provisio/internal/rbac"
+	"github.com/ioflux-org/armite/internal/rbac"
 )
 
 // mustParse fails the test immediately on a path the table meant to be valid.

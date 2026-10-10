@@ -4,15 +4,15 @@
 // data actions - Azure's own split), grants itself Storage Blob Data
 // Contributor, can, uses the account key and a service SAS (validated by
 // Azurite), then a user delegation SAS (issued and validated by
-// Provisio) - which stops working the moment the grant is revoked.
+// Armite) - which stops working the moment the grant is revoked.
 // Exits non-zero on any mismatch.
 import {randomUUID} from "node:crypto";
 import {ClientSecretCredential} from "@azure/identity";
 import {BlobServiceClient, StorageSharedKeyCredential, BlobSASPermissions,
     generateBlobSASQueryParameters} from "@azure/storage-blob";
 
-const ARM = process.env.PROVISIO_ARM ?? "https://management.localhost:8443";
-const SUFFIX = process.env.PROVISIO_STORAGE_SUFFIX ?? "core.localhost:8443";
+const ARM = process.env.ARMITE_ARM ?? "https://management.localhost:8443";
+const SUFFIX = process.env.ARMITE_STORAGE_SUFFIX ?? "core.localhost:8443";
 const SUB = "22222222-2222-2222-2222-222222222222";
 const GROUP = "st-rg";
 const ACCOUNT = "stdemo"; // its hostname must resolve: stdemo.blob.core.localhost
@@ -131,7 +131,7 @@ ok(body === "hello", "download with a service SAS");
 await refused(() => viaSAS.getBlockBlobClient("hello.txt").upload("x", 1), 403,
     "AuthorizationPermissionMismatch", "a read-only service SAS cannot write");
 
-// 6. Identity-based SAS: a user delegation key from Provisio, a SAS
+// 6. Identity-based SAS: a user delegation key from Armite, a SAS
 // signed with it, authorized as the Owner would be - at use time.
 const udk = await service.getUserDelegationKey(new Date(), expiresOn);
 ok(udk.signedObjectId === OWNER_OID, `getUserDelegationKey -> oid ${ udk.signedObjectId }`);

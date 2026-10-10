@@ -1,19 +1,21 @@
+name: armite
+
 services:
-  provisio:
+  armite:
     build: .
-    image: provisio:dev
+    image: armite:dev
     ports:
       - "127.0.0.1:8443:8443"
       - "127.0.0.1:8081:8081"
     volumes:
       - data:/data
 
-# The volume is Provisio's home directory: the CA and keys generated at
+# The volume is Armite's home directory: the CA and keys generated at
 # first boot, and state/ with everything created through the API,
 # Azurite's blobs included. Read the CA out with:
-#   docker compose cp provisio:/data/ca.pem ./ca.pem
+#   docker compose cp armite:/data/ca.pem ./ca.pem
 # Start over but keep the CA (clients stay trusted): stop it, then
-#   docker run --rm -v provisio_data:/data alpine rm -rf /data/state
+#   docker run --rm -v armite_data:/data alpine rm -rf /data/state
 # Start over completely: docker compose down -v
 volumes:
   data:

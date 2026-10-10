@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ioflux-org/provisio/internal/azerr"
-	"github.com/ioflux-org/provisio/internal/config"
+	"github.com/ioflux-org/armite/internal/azerr"
+	"github.com/ioflux-org/armite/internal/config"
 )
 
 // TestGatewayPipeline pins the assembled pipeline end to end: the M0
