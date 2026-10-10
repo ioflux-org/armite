@@ -1,4 +1,11 @@
-# Armite
+<h1 align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/public/armite-logo-dark.svg">
+    <img alt="Armite" src="docs/public/armite-logo.svg" width="320">
+  </picture>
+</h1>
+
+<p align="center"><a href="https://ioflux-org.github.io/armite/">Documentation</a></p>
 
 A local Azure emulator with a real identity plane and real RBAC. Your
 application, the Azure CLI, the Azure SDKs and Terraform talk to
