@@ -13,6 +13,12 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath \
     -ldflags="-s -w -X main.version=$VERSION" -o /out/armite ./cmd/armite
 
+# Azurite: installed on the builder's platform too, because npm under
+# QEMU emulation (the arm64 half of a multi-arch build) crashes Node;
+# Azurite is pure JavaScript, so the install copies across platforms.
+FROM --platform=$BUILDPLATFORM node:22-alpine AS azurite
+RUN npm install -g azurite@3.37.0 && npm cache clean --force
+
 # Run: Node, because storage accounts are served by Azurite, a Node
 # program Armite starts and restarts itself; non-root (the image's
 # "node" user). /data is the home directory: the CA, leaf certificate,
@@ -20,7 +26,10 @@ RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath \
 # everything created through the API, Azurite's blobs included. One
 # volume; delete state/ inside it to start over with the same CA.
 FROM node:22-alpine
-RUN npm install -g azurite@3.37.0 && npm cache clean --force
+COPY --from=azurite /usr/local/lib/node_modules/azurite /usr/local/lib/node_modules/azurite
+# The commands npm would have linked; COPY would flatten the symlinks.
+RUN ln -s ../lib/node_modules/azurite/dist/src/blob/main.js /usr/local/bin/azurite-blob && \
+    ln -s ../lib/node_modules/azurite/dist/src/azurite.js /usr/local/bin/azurite
 WORKDIR /app
 COPY --from=build /out/armite /app/armite
 RUN mkdir -p /data && chown node:node /data
