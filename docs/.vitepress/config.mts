@@ -4,7 +4,7 @@ import { defineConfig, type HeadConfig } from 'vitepress'
 // Back on the GitHub project URL (ioflux-org.github.io/armite) they would
 // need base '/armite/' and the site URL to match.
 const base = '/'
-const site = 'https://armite.ioflux.org/'
+const site = 'https://armite.cloud/'
 const repo = 'https://github.com/ioflux-org/armite'
 
 // Microsoft Clarity (usage analytics) is injected only when the build

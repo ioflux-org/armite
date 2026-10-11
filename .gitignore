@@ -44,3 +44,9 @@ node_modules/
 .terraform.tfstate.lock.info
 
 /dist
+
+# Demo clips: the tapes are the source and render in seconds (demo/README.md);
+# only the README's hero GIF is committed, the rest are release assets.
+demo/*.mp4
+demo/*.gif
+!demo/hero.gif

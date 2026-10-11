@@ -5,7 +5,9 @@
   </picture>
 </h1>
 
-<p align="center"><a href="https://armite.ioflux.org/">Documentation</a></p>
+<p align="center"><a href="https://armite.cloud/">Documentation</a></p>
+
+![Owner cannot write a secret until a data role is granted](demo/hero.gif)
 
 A local Azure emulator with a real identity plane and real RBAC. Your
 application, the Azure CLI, the Azure SDKs and Terraform talk to

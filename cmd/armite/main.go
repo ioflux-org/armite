@@ -236,7 +236,7 @@ func nextSteps(cfg config.Config, home string) []string {
 			"/etc/hosts lines; Linux with systemd-resolved needs nothing (see docs/dns.md)",
 		"      2. " + trust,
 		"      3. az cloud register -n Armite --endpoint-resource-manager " + cfg.ARMBaseURL() +
-			" - the demo and the rest: https://armite.ioflux.org/getting-started",
+			" - the demo and the rest: https://armite.cloud/getting-started",
 	}
 }
 
