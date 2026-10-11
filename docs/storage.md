@@ -13,6 +13,9 @@ emulator, behind Armite's identity and RBAC. The division of labour:
 
 ## The demo
 
+<video controls muted playsinline preload="metadata" style="width:100%;border-radius:8px"
+  src="/demo/storage.mp4"></video>
+
 ```bash
 az storage account create -n stdemo -g st-rg -l eastus --sku Standard_LRS
 az storage container create -n demo --account-name stdemo --auth-mode login

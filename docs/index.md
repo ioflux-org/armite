@@ -35,6 +35,9 @@ features:
 
 ## "But I'm Owner?!"
 
+<video autoplay loop muted playsinline style="width:100%;border-radius:8px"
+  src="/demo/hero.mp4"></video>
+
 ```text
 $ az keyvault secret set --vault-name kv-demo -n db-pass --value hunter2
 (Forbidden) Caller is not authorized to perform action on resource.

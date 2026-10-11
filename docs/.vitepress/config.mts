@@ -56,6 +56,7 @@ export default defineConfig({
       {
         text: 'Start here',
         items: [
+          { text: 'Install', link: '/install' },
           { text: 'Getting started', link: '/getting-started' },
           { text: 'Client setup', link: '/clients' },
           { text: 'Hostnames', link: '/dns' },

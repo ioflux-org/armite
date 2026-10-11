@@ -15,9 +15,8 @@ go install github.com/ioflux-org/armite/cmd/armite@latest && armite
 git clone https://github.com/ioflux-org/armite && cd armite && go run ./cmd/armite
 ```
 
-Release archives for Linux, macOS and Windows, with checksums, are at
-[github.com/ioflux-org/armite/releases](https://github.com/ioflux-org/armite/releases);
-`armite version` prints the version you have.
+Every route, with the archive for each platform and its checksum, is
+on [Install](./install.md).
 
 The server generates a private CA in `~/.armite/` at first boot, keeps
 what you create in your data directory (`~/.local/share/armite` on
@@ -38,6 +37,9 @@ Two things every client needs:
    `REQUESTS_CA_BUNDLE`, `NODE_EXTRA_CA_CERTS`, `SSL_CERT_FILE`).
 
 ## The demo
+
+<video controls muted playsinline preload="metadata" style="width:100%;border-radius:8px"
+  src="/demo/hero.mp4"></video>
 
 The Azure CLI, in a config directory of its own so your real Azure login
 is untouched:

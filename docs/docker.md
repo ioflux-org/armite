@@ -1,5 +1,8 @@
 # Running Armite in Docker
 
+<video controls muted playsinline preload="metadata" style="width:100%;border-radius:8px"
+  src="/demo/docker.mp4"></video>
+
 ## Pull
 
 Every release publishes the image to GitHub's registry for `linux/amd64`

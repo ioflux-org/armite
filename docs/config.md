@@ -147,6 +147,9 @@ rather than a name to look up.
 
 ## Logs and request ids
 
+<video controls muted playsinline preload="metadata" style="width:100%;border-radius:8px"
+  src="/demo/ops.mp4"></video>
+
 Every response carries an `x-ms-request-id`, as Azure's do, and every
 request is one log line under that id:
 

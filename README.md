@@ -63,7 +63,7 @@ go install github.com/ioflux-org/armite/cmd/armite@latest && armite   # or the b
 Binaries for Linux, macOS and Windows are on the
 [releases page](https://github.com/ioflux-org/armite/releases) with
 checksums; from a clone, `go run ./cmd/armite`. `armite version` says
-which you have.
+which you have. All routes: [https://armite.cloud/install](https://armite.cloud/install)
 
 The server generates a private CA in `~/.armite/` at first boot, keeps what you create in your data directory (`~/.local/share/armite` on Linux), and serves `https://management.localhost:8443` (ARM), `https://login.localhost:8443` (Entra), `https://{vault}.vault.localhost:8443` (Key Vault data
 plane) and `https://{account}.blob.core.localhost:8443` (blobs), plus
