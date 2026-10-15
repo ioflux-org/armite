@@ -156,7 +156,11 @@ func (l *Log) replayFile(path string, truncateTorn bool) error {
 		}
 		log.Printf("state: journal has a torn record at byte %d of %d (crash mid-write); truncating",
 			good, len(data))
-		if err := l.journal.Truncate(good); err != nil {
+		// By path, not through l.journal: that handle was opened for
+		// appending, and on Windows an append-only handle may not change
+		// the file's length. A second handle may — the journal's share
+		// mode allows it — and the next append still lands at the new end.
+		if err := os.Truncate(path, good); err != nil {
 			return fmt.Errorf("state: %w", err)
 		}
 		l.size = good
@@ -282,19 +286,21 @@ func (l *Log) Compact() error {
 		return err
 	}
 	jtmp := filepath.Join(l.dir, journalName+".tmp")
-	if err := os.WriteFile(jtmp, tail, 0o600); err != nil {
+	if err := writeSynced(jtmp, tail); err != nil {
 		return err
 	}
-	if err := syncFile(jtmp); err != nil {
-		return err
-	}
-	if err := replace(jtmp, filepath.Join(l.dir, journalName)); err != nil {
-		return err
-	}
+	// Close before the rename: Windows will not replace a file that is
+	// still open, and nothing can append while l.mu is held. Whatever
+	// the rename did, reopen what is now at the journal's path.
+	journal := filepath.Join(l.dir, journalName)
 	l.journal.Close()
-	l.journal, err = os.OpenFile(filepath.Join(l.dir, journalName), os.O_RDWR|os.O_APPEND, 0o600)
+	renameErr := replace(jtmp, journal)
+	l.journal, err = os.OpenFile(journal, os.O_RDWR|os.O_APPEND, 0o600)
 	if err != nil {
 		return err
+	}
+	if renameErr != nil {
+		return renameErr // the old journal is untouched and open again
 	}
 	l.size = int64(len(tail))
 	return nil
@@ -362,4 +368,23 @@ func syncFile(path string) error {
 	}
 	defer f.Close()
 	return f.Sync()
+}
+
+// writeSynced writes data to path through a handle it can fsync.
+// os.WriteFile followed by a sync through a read-only handle works on
+// POSIX; Windows requires write access to flush a file.
+func writeSynced(path string, data []byte) error {
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+	if err != nil {
+		return err
+	}
+	if _, err := f.Write(data); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Sync(); err != nil {
+		f.Close()
+		return err
+	}
+	return f.Close()
 }

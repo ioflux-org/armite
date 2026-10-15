@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -50,6 +51,7 @@ func open(t *testing.T, dir string, key []byte, compactAfter int64) (*Log, *memS
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { _ = l.Close() }) // Windows cannot delete an open file
 	s := newMem()
 	l.Attach("t", s)
 	if err := l.Replay(); err != nil {
@@ -277,7 +279,7 @@ func TestLoadKey(t *testing.T) {
 		t.Fatalf("LoadKey generated = %d bytes, %v", len(k1), err)
 	}
 	info, _ := os.Stat(filepath.Join(dir, keyName))
-	if info.Mode().Perm() != 0o600 {
+	if runtime.GOOS != "windows" && info.Mode().Perm() != 0o600 {
 		t.Errorf("key file mode = %v, want 0600", info.Mode().Perm())
 	}
 	k2, _ := LoadKey(dir, "")

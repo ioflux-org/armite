@@ -59,6 +59,7 @@ func reopen(t *testing.T, dir string) (*state.Log, *Store) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { _ = log.Close() })
 	s := New(log)
 	if err := log.Replay(); err != nil {
 		t.Fatal(err)
