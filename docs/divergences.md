@@ -27,6 +27,10 @@ limitation_ (unverified against a live subscription), _invention_
 - **Key files on Windows** carry the profile folder's inherited ACL;
   the 0600 mode set on other platforms has no equivalent there.
   _environment_
+- **On Windows Azurite is ended by force** when the set of storage
+  accounts changes (no signal can reach it); container and blob
+  metadata written in the seconds before a new storage account is
+  created may be lost. Blob bytes are on disk at once. _environment_
 
 ## Identity
 
