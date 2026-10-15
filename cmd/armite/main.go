@@ -169,7 +169,7 @@ func main() {
 		}
 	}
 	if err := journal.Replay(); err != nil {
-		log.Fatalf("%v (to start over, delete %s)", err, cfg.State.Dir)
+		log.Fatalf("%v (to start over: armite reset)", err)
 	}
 	if err := accounts.Start(); err != nil {
 		log.Fatal(err)
@@ -284,10 +284,17 @@ func nextSteps(cfg config.Config, home string) []string {
 // means it passed), "hosts" prints the /etc/hosts lines for every
 // hostname the server answers to.
 func runCommand(cfg config.Config, path string, args []string) {
-	if args[0] == "hosts" {
+	switch args[0] {
+	case "hosts":
 		if err := printHosts(cfg); err != nil {
 			log.Fatal(err)
 		}
+		return
+	case "doctor":
+		runDoctor(cfg, path)
+		return
+	case "reset":
+		runReset(cfg, args[1:])
 		return
 	}
 	if args[0] == "config" && len(args) > 1 {
@@ -333,29 +340,28 @@ func runCommand(cfg config.Config, path string, args []string) {
 		}
 	}
 	fmt.Fprintf(os.Stderr, "usage: armite [config init [file] | config show [--secrets] | "+
-		"config check | hosts | version]\n")
+		"config check | hosts | doctor | reset [-y] | version]\n")
 	os.Exit(2)
 }
 
-// printHosts prints one /etc/hosts line per hostname: the fixed ones,
+// hostNames is every hostname the server answers to: the fixed two,
 // then one per vault and per storage account in the state (the queue
 // and table twins included, for Terraform), read without touching the
-// files so it works beside a running server. Nothing else goes to
-// stdout, so the output can be appended to the hosts file as it is.
-func printHosts(cfg config.Config) error {
+// files so it works beside a running server.
+func hostNames(cfg config.Config) ([]string, error) {
 	names := []string{cfg.ARMHost, cfg.LoginHost}
 	if _, err := os.Stat(cfg.State.Dir); cfg.State.Dir != "" && err == nil {
 		key, err := state.LoadKey(config.Home(), cfg.State.Key)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		journal, err := state.OpenReadOnly(cfg.State.Dir, key)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		resources := store.New(journal)
 		if err := journal.Replay(); err != nil {
-			return err
+			return nil, err
 		}
 		vaults, _ := resources.List("/", "Microsoft.KeyVault/vaults")
 		for _, v := range vaults {
@@ -367,6 +373,16 @@ func printHosts(cfg config.Config) error {
 			names = append(names, name+"."+cfg.BlobHost, name+"."+cfg.QueueHost(),
 				name+"."+cfg.TableHost())
 		}
+	}
+	return names, nil
+}
+
+// printHosts prints one /etc/hosts line per name. Nothing else goes to
+// stdout, so the output can be appended to the hosts file as it is.
+func printHosts(cfg config.Config) error {
+	names, err := hostNames(cfg)
+	if err != nil {
+		return err
 	}
 	fmt.Println("# armite hosts: append to /etc/hosts, or see docs/dns.md for a resolver fix")
 	for _, n := range names {

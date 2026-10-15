@@ -6,6 +6,7 @@ hostname per vault (`kv-demo.vault.localhost`) and per storage account
 (`stdemo.blob.core.localhost`, plus the `queue.` and `table.` twins
 Terraform probes). The certificate covers all of them with wildcards;
 whether they resolve to your machine is up to your resolver.
+`armite doctor` reports whether each name resolves to this machine.
 
 Check first:
 
