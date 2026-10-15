@@ -70,6 +70,10 @@ docker run --rm --name armite \
   armite:dev
 ```
 
+`docker stop` ends Armite cleanly: requests in flight finish, Azurite
+is stopped politely and the journal is closed, well inside Docker's
+grace period.
+
 ### With compose
 
 ```bash

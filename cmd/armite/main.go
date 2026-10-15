@@ -2,15 +2,18 @@ package main
 
 import (
 	"cmp"
+	"context"
 	"fmt"
 	"log"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"runtime/debug"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/ioflux-org/armite/internal/azurite"
@@ -214,7 +217,41 @@ func main() {
 	errc := make(chan error, 2)
 	go func() { errc <- server.ListenAndServeTLS(certFile, keyFile) }()
 	go func() { errc <- imds.ListenAndServe() }()
-	log.Fatal(<-errc)
+
+	// Run until a listener fails or someone asks us to stop. Ctrl-C and
+	// SIGTERM (kill, docker stop, systemd) both cancel the context.
+	// stop() restores the default behaviour, so a second Ctrl-C while
+	// stopping ends the process at once.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	select {
+	case err := <-errc:
+		stop()
+		log.Fatal(err)
+	case <-ctx.Done():
+		stop()
+		log.Print("Stopping")
+	}
+	shutdown(server, imds, accounts, journal)
+}
+
+// shutdown ends the process in the order that loses nothing: stop
+// accepting and let in-flight requests finish, then end Azurite (a
+// polite stop lets it flush its metadata), then close the journal.
+// Five seconds is the whole budget; a request slower than that is cut.
+func shutdown(server, imds *http.Server, accounts *storage.Provider, journal *state.Log) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	for _, s := range []*http.Server{server, imds} {
+		if err := s.Shutdown(ctx); err != nil {
+			log.Printf("stopping: %v", err)
+		}
+	}
+	if err := accounts.Stop(); err != nil {
+		log.Printf("stopping azurite: %v", err)
+	}
+	if err := journal.Close(); err != nil {
+		log.Printf("closing the journal: %v", err)
+	}
 }
 
 // nextSteps is what the boot log owes a first run: the three things
