@@ -67,6 +67,56 @@ jobs:
         if: failure()
         run: tail -60 "$CI_DIR/server.log"
 
+  # The same server and az smoke on the two platforms the release
+  # archives ship for and nobody runs by hand: macOS on Apple silicon
+  # and Windows under Git Bash. One pass each, no resets.
+  smoke-os:
+    needs: gate
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - name: Where the server lives
+        run: echo "CI_DIR=$RUNNER_TEMP/armite-ci" >> "$GITHUB_ENV"
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Unit tests on this platform
+        run: go test -count=1 ./...
+      - name: Azurite, the blob store behind storage accounts
+        run: npm install -g azurite@3.37.0
+      - name: Hostnames (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          { echo; ./scripts/ci/hosts.sh; } | sudo tee -a /etc/hosts >/dev/null
+          sudo dscacheutil -flushcache; sudo killall -HUP mDNSResponder
+      - name: Hostnames (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          { echo; ./scripts/ci/hosts.sh; } >> /c/Windows/System32/drivers/etc/hosts
+      - name: Hostnames resolve
+        run: node -e "require('dns').lookup('kv-demo.vault.localhost',(e,a)=>{if(e){console.error(e.message);process.exit(1)}console.log(a)})"
+      - name: Start the server
+        run: ./scripts/ci/server.sh start
+      - name: az
+        run: ./scripts/ci/az-smoke.sh
+      - name: Stop the server
+        if: always()
+        run: ./scripts/ci/server.sh stop
+      - name: Server log
+        if: failure()
+        run: tail -60 "$CI_DIR/server.log"
+
   docker:
     runs-on: ubuntu-latest
     steps:

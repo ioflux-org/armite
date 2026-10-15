@@ -8,11 +8,16 @@
 set -euo pipefail
 CI_DIR="${CI_DIR:-/tmp/armite-ci}"
 export ARMITE_HOME="$CI_DIR/home"
+BIN="$CI_DIR/armite"
+case "$(uname -s)" in
+MINGW*|MSYS*|CYGWIN*) BIN="$BIN.exe"; windows=1 ;;
+*) windows= ;;
+esac
 
 start() {
     mkdir -p "$CI_DIR"
-    [ -x "$CI_DIR/armite" ] || go build -o "$CI_DIR/armite" ./cmd/armite
-    "$CI_DIR/armite" >> "$CI_DIR/server.log" 2>&1 &
+    [ -x "$BIN" ] || go build -o "$BIN" ./cmd/armite
+    "$BIN" >> "$CI_DIR/server.log" 2>&1 &
     echo $! > "$CI_DIR/server.pid"
     for _ in $(seq 1 60); do
         grep -q 'Serving https' "$CI_DIR/server.log" 2>/dev/null && break
@@ -28,11 +33,23 @@ start() {
 }
 
 stop() {
-    if [ -f "$CI_DIR/server.pid" ]; then
+    if [ -n "$windows" ]; then
+        # Windows has no signals: taskkill ends the process and, with
+        # //T, the tree under it — the cmd.exe that npm's azurite-blob.cmd
+        # is, and the node it started. Doubled slashes keep Git Bash from
+        # rewriting /F into a path.
+        taskkill //F //T //IM armite.exe >/dev/null 2>&1 || true
+    elif [ -f "$CI_DIR/server.pid" ]; then
         kill "$(cat "$CI_DIR/server.pid")" 2>/dev/null || true
-        rm -f "$CI_DIR/server.pid"
-        sleep 1
     fi
+    rm -f "$CI_DIR/server.pid"
+    # Linux ties Azurite's life to Armite's (Pdeathsig in death_linux.go).
+    # macOS has no such thing and Armite does not yet shut Azurite down
+    # on SIGTERM (R5b), so the orphan is ended here; otherwise the next
+    # start would find port 10000 answered by an Azurite holding the old
+    # account key and every storage call would be a 403.
+    [ "$(uname -s)" = Darwin ] && pkill -f 'bin/azurite-blob' 2>/dev/null || true
+    sleep 1
 }
 
 case "${1:-}" in
