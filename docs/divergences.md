@@ -24,6 +24,9 @@ limitation_ (unverified against a live subscription), _invention_
   principals. State persists across restarts in a local, encrypted
   journal (see [persistence.md](persistence.md)), not in a database:
   one server per state directory. _simplification_
+- **Key files on Windows** carry the profile folder's inherited ACL;
+  the 0600 mode set on other platforms has no equivalent there.
+  _environment_
 
 ## Identity
 

@@ -5,6 +5,7 @@ import (
 	"encoding/pem"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -63,6 +64,9 @@ func TestLeafVerifiesForConfiguredHosts(t *testing.T) {
 }
 
 func TestPrivateKeyFilePermissions(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("no POSIX permission bits; key files rely on the profile folder's ACL")
+	}
 	dir := t.TempDir()
 	caCert, caKey, err := EnsureCA(dir)
 	if err != nil {
@@ -96,7 +100,7 @@ func TestEnsureSigningKeyIsIdempotent(t *testing.T) {
 	if first.N.Cmp(second.N) != 0 {
 		t.Errorf("signing key changed across boots")
 	}
-	if perm := statPerm(t, filepath.Join(dir, signingKeyFile)); perm != 0o600 {
+	if perm := statPerm(t, filepath.Join(dir, signingKeyFile)); runtime.GOOS != "windows" && perm != 0o600 {
 		t.Errorf("signing key permissions = %o, want 600", perm)
 	}
 }
