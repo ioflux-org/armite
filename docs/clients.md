@@ -25,6 +25,10 @@ curl -s --cacert ~/.armite/ca.pem -H "Authorization: Bearer $TOKEN" \
   'https://management.localhost:8443/subscriptions?api-version=2022-12-01'
 ```
 
+On Windows, `curl.exe` verifies with Schannel and also checks
+revocation, which a private CA cannot answer; add
+`--ssl-revoke-best-effort` to the commands above.
+
 ## Azure CLI
 
 Use a separate configuration directory so your real login is untouched,

@@ -11,6 +11,12 @@ set -euo pipefail
 # The paths we pass ($CI_DIR) are already Windows paths there.
 case "$(uname -s)" in MINGW*|MSYS*) export MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' ;; esac
 
+# Windows' curl verifies with Schannel, which also asks the CA for a
+# revocation list; a private CA has none and Schannel fails closed
+# ("the revocation status is unknown"). Best effort: skip the check
+# when there is no list to consult. OpenSSL builds ignore the flag.
+CURL_REVOKE=""; case "$(uname -s)" in MINGW*|MSYS*) CURL_REVOKE="--ssl-revoke-best-effort" ;; esac
+
 CI_DIR="${CI_DIR:-/tmp/armite-ci}"
 export AZURE_CONFIG_DIR="$CI_DIR/az" REQUESTS_CA_BUNDLE="$CI_DIR/home/ca.pem"
 SUB=22222222-2222-2222-2222-222222222222
@@ -84,12 +90,12 @@ ok "download"
 SAS=$(tsv storage blob generate-sas -c demo -n hello.txt --account-name stdemo --permissions r \
     --expiry "$(expiry)" --auth-mode login --as-user)
 BLOB=$(tsv storage account show -n stdemo -g st-rg --query primaryEndpoints.blob)
-[ "$(curl -sS --cacert "$REQUESTS_CA_BUNDLE" "${BLOB}demo/hello.txt?$SAS")" = hello ] ||
+[ "$(curl -sS $CURL_REVOKE --cacert "$REQUESTS_CA_BUNDLE" "${BLOB}demo/hello.txt?$SAS")" = hello ] ||
     fail "read with a user delegation SAS"
 ok "read with a user delegation SAS"
 
 # The id on an error is the id in the server log.
-ID=$(curl -sS --cacert "$REQUESTS_CA_BUNDLE" -D - -o /dev/null \
+ID=$(curl -sS $CURL_REVOKE --cacert "$REQUESTS_CA_BUNDLE" -D - -o /dev/null \
     'https://management.localhost:8443/subscriptions?api-version=2022-12-01' |
     awk 'tolower($1)=="x-ms-request-id:"{print $2}' | tr -d '\r')
 grep -q "id=$ID" "$CI_DIR/server.log" || fail "request id $ID is not in the server log"
