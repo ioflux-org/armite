@@ -35,21 +35,17 @@ start() {
 stop() {
     if [ -n "$windows" ]; then
         # Windows has no signals: taskkill ends the process and, with
-        # //T, the tree under it — the cmd.exe that npm's azurite-blob.cmd
-        # is, and the node it started. Doubled slashes keep Git Bash from
+        # //T, the tree under it. Doubled slashes keep Git Bash from
         # rewriting /F into a path.
         taskkill //F //T //IM armite.exe >/dev/null 2>&1 || true
     elif [ -f "$CI_DIR/server.pid" ]; then
-        kill "$(cat "$CI_DIR/server.pid")" 2>/dev/null || true
+        pid=$(cat "$CI_DIR/server.pid")
+        kill "$pid" 2>/dev/null || true
+        # SIGTERM is a clean stop: in-flight requests finish, Azurite is
+        # ended politely, the journal closed. Wait for it, up to 6 s.
+        for _ in $(seq 1 30); do kill -0 "$pid" 2>/dev/null || break; sleep 0.2; done
     fi
     rm -f "$CI_DIR/server.pid"
-    # Linux ties Azurite's life to Armite's (Pdeathsig in death_linux.go).
-    # macOS has no such thing and Armite does not yet shut Azurite down
-    # on SIGTERM (R5b), so the orphan is ended here; otherwise the next
-    # start would find port 10000 answered by an Azurite holding the old
-    # account key and every storage call would be a 403.
-    [ "$(uname -s)" = Darwin ] && pkill -f 'bin/azurite-blob' 2>/dev/null || true
-    sleep 1
 }
 
 case "${1:-}" in
