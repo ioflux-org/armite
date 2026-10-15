@@ -95,7 +95,7 @@ BLOB=$(tsv storage account show -n stdemo -g st-rg --query primaryEndpoints.blob
 ok "read with a user delegation SAS"
 
 # The id on an error is the id in the server log.
-ID=$(curl -sS $CURL_REVOKE --cacert "$REQUESTS_CA_BUNDLE" -D - -o /dev/null \
+ID=$(curl -sS $CURL_REVOKE --cacert "$REQUESTS_CA_BUNDLE" -D - -o "$CI_DIR/body" \
     'https://management.localhost:8443/subscriptions?api-version=2022-12-01' |
     awk 'tolower($1)=="x-ms-request-id:"{print $2}' | tr -d '\r')
 grep -q "id=$ID" "$CI_DIR/server.log" || fail "request id $ID is not in the server log"
