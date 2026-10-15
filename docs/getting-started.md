@@ -36,6 +36,9 @@ Two things every client needs:
 2. **The CA.** `~/.armite/ca.pem`, passed per client (`curl --cacert`,
    `REQUESTS_CA_BUNDLE`, `NODE_EXTRA_CA_CERTS`, `SSL_CERT_FILE`).
 
+`armite doctor` checks both, plus the ports and Azurite, and says what
+to fix; `armite reset` starts over with an empty state and the same CA.
+
 ## The demo
 
 <video controls muted playsinline preload="metadata" style="width:100%;border-radius:8px"
