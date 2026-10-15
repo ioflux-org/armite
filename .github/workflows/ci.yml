@@ -93,8 +93,23 @@ jobs:
           node-version: 22
       - name: Unit tests on this platform
         run: go test -count=1 ./...
+      - name: Azurite, cached between runs
+        id: azurite
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ runner.temp }}/azurite
+          key: azurite-3.37.0-${{ runner.os }}-${{ runner.arch }}
       - name: Azurite, the blob store behind storage accounts
-        run: npm install -g azurite@3.37.0
+        if: steps.azurite.outputs.cache-hit != 'true'
+        run: npm install --prefix "$RUNNER_TEMP/azurite" --no-audit --no-fund --loglevel=error azurite@3.37.0
+      - name: Save the Azurite install
+        if: steps.azurite.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ runner.temp }}/azurite
+          key: ${{ steps.azurite.outputs.cache-primary-key }}
+      - name: Azurite on the PATH
+        run: echo "$RUNNER_TEMP/azurite/node_modules/.bin" >> "$GITHUB_PATH"
       - name: Hostnames (macOS)
         if: runner.os == 'macOS'
         run: |

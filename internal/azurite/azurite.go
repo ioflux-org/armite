@@ -58,6 +58,9 @@ func (m *Manager) Start(accounts map[string]string) error {
 	if err := m.stopLocked(); err != nil {
 		return err
 	}
+	if err := m.waitFree(); err != nil {
+		return err
+	}
 	if err := os.MkdirAll(m.location, 0o700); err != nil {
 		return fmt.Errorf("azurite: %w", err)
 	}
@@ -113,9 +116,27 @@ func (m *Manager) waitReady(exited <-chan error) error {
 	return errors.New("azurite: did not start listening within 20s")
 }
 
-// Stop ends the process, politely first so Azurite flushes its
-// metadata database; after five seconds, by force. (Windows cannot
-// deliver the polite signal; there it is always the second path.)
+// waitFree gives a just-ended Azurite a moment to release the port and
+// refuses to start while something else holds it: waitReady would greet
+// that stranger and every storage request would go to it.
+func (m *Manager) waitFree() error {
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		conn, err := net.DialTimeout("tcp", m.Addr(), 200*time.Millisecond)
+		if err != nil {
+			return nil // nothing listens
+		}
+		conn.Close()
+		if time.Now().After(deadline) {
+			return fmt.Errorf("azurite: %s is already in use (an Azurite from an earlier run? end it, or set azurite.port)", m.Addr())
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+}
+
+// Stop ends the process: on POSIX politely first, so Azurite flushes
+// its metadata database, and by force after five seconds; on Windows
+// the whole process tree at once, since no signal can reach it.
 func (m *Manager) Stop() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -128,7 +149,7 @@ func (m *Manager) stopLocked() error {
 	}
 	proc, exited := m.proc, m.exited
 	m.proc, m.exited = nil, nil
-	_ = proc.Process.Signal(os.Interrupt)
+	interrupt(proc)
 	select {
 	case <-exited:
 	case <-time.After(5 * time.Second):
