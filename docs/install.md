@@ -6,10 +6,10 @@ Four ways to get Armite. Only storage accounts need anything else
 ## The image
 
 ```bash
-docker pull ghcr.io/ioflux-org/armite:latest    # or :0.1.2, :0.1
+docker pull ghcr.io/ioflux-org/armite:latest    # or :0.1.3, :0.1
 ```
 
-linux/amd64 and linux/arm64, Azurite inside. `0.1.2` never changes,
+linux/amd64 and linux/arm64, Azurite inside. `0.1.3` never changes,
 `0.1` follows the newest patch of that minor, `latest` the newest
 release. Running it is in [Running in Docker](./docker.md).
 
@@ -21,7 +21,7 @@ linux/amd64, linux/arm64, darwin/amd64, darwin/arm64 and windows/amd64,
 plus `armite_<version>_checksums.txt`.
 
 ```bash
-V=0.1.2 OS=linux ARCH=amd64        # Apple silicon: OS=darwin ARCH=arm64
+V=0.1.3 OS=linux ARCH=amd64        # Apple silicon: OS=darwin ARCH=arm64
 curl -LO https://github.com/ioflux-org/armite/releases/download/v$V/armite_${V}_${OS}_${ARCH}.tar.gz
 curl -LO https://github.com/ioflux-org/armite/releases/download/v$V/armite_${V}_checksums.txt
 sha256sum --ignore-missing -c armite_${V}_checksums.txt   # macOS: shasum -a 256 --ignore-missing -c
@@ -40,7 +40,7 @@ choose "More info", then "Run anyway".
 ## go install
 
 ```bash
-go install github.com/ioflux-org/armite/cmd/armite@latest   # or @v0.1.2
+go install github.com/ioflux-org/armite/cmd/armite@latest   # or @v0.1.3
 ```
 
 Needs Go 1.26. `armite version` reads the version from the module's
