@@ -16,7 +16,7 @@ RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath \
 # Azurite: installed on the builder's platform too, because npm under
 # QEMU emulation (the arm64 half of a multi-arch build) crashes Node;
 # Azurite is pure JavaScript, so the install copies across platforms.
-FROM --platform=$BUILDPLATFORM node:22-alpine AS azurite
+FROM --platform=$BUILDPLATFORM node:25-alpine AS azurite
 RUN npm install -g azurite@3.37.0 && npm cache clean --force
 
 # Run: Node, because storage accounts are served by Azurite, a Node
@@ -25,7 +25,7 @@ RUN npm install -g azurite@3.37.0 && npm cache clean --force
 # signing key and state key generated at first boot, and state/ with
 # everything created through the API, Azurite's blobs included. One
 # volume; delete state/ inside it to start over with the same CA.
-FROM node:22-alpine
+FROM node:25-alpine
 COPY --from=azurite /usr/local/lib/node_modules/azurite /usr/local/lib/node_modules/azurite
 # The commands npm would have linked; COPY would flatten the symlinks.
 RUN ln -s ../lib/node_modules/azurite/dist/src/blob/main.js /usr/local/bin/azurite-blob && \
