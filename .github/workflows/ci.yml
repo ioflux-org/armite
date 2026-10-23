@@ -1,14 +1,17 @@
-# Three jobs. gate: format, vet, tests. smoke: a built server on the
-# runner, driven by az, the Azure SDK for JavaScript and Terraform -
-# the same scripts as ./scripts/ci/all.sh locally. docker: the image
-# builds, boots and answers. The runner's resolver answers *.localhost
-# already (systemd-resolved); the hosts step makes it explicit.
+# What changed decides what runs (changes): gate, smoke, smoke-os and
+# docker for code; docs builds the site for docs changes. A skipped job
+# counts as passed for the branch rule, so a docs-only PR still merges.
+# The Linux runner's resolver answers *.localhost already; the hosts
+# step makes it explicit, macOS and Windows get hosts lines.
 name: CI
 
 on:
   push:
     branches: [main]
   pull_request:
+
+permissions:
+  contents: read
 
 concurrency:
   group: ci-${{ github.ref }}
