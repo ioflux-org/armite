@@ -57,8 +57,8 @@ jobs:
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       - name: gofmt
@@ -71,20 +71,20 @@ jobs:
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # The runner context is not available to a job-level env block;
       # a step can read $RUNNER_TEMP and export the directory for the rest.
       - name: Where the server lives
         run: echo "CI_DIR=$RUNNER_TEMP/armite-ci" >> "$GITHUB_ENV"
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: scripts/sdk-smoke/package-lock.json
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: "1.16.4"
           terraform_wrapper: false
@@ -127,20 +127,20 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Where the server lives
         run: echo "CI_DIR=$RUNNER_TEMP/armite-ci" >> "$GITHUB_ENV"
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
       - name: Unit tests on this platform
         run: go test -count=1 ./...
       - name: Azurite, cached between runs
         id: azurite
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: ${{ runner.temp }}/azurite
           key: azurite-3.37.0-${{ runner.os }}-${{ runner.arch }}
@@ -149,7 +149,7 @@ jobs:
         run: npm install --prefix "$RUNNER_TEMP/azurite" --no-audit --no-fund --loglevel=error azurite@3.37.0
       - name: Save the Azurite install
         if: steps.azurite.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: ${{ runner.temp }}/azurite
           key: ${{ steps.azurite.outputs.cache-primary-key }}
@@ -182,7 +182,7 @@ jobs:
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Build and boot
         run: |
           docker compose up -d --build
