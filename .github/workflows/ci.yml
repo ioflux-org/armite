@@ -10,8 +10,48 @@ on:
     branches: [main]
   pull_request:
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  # What changed decides what runs. A docs-only change builds the site;
+  # anything else runs the Go gate, the smokes and the image. Skipped
+  # jobs count as passed for the branch rule, so a docs PR still merges.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.diff.outputs.code }}
+      docs: ${{ steps.diff.outputs.docs }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: diff
+        run: |
+          if [ "${{ github.event_name }}" = pull_request ]; then
+            range="origin/${{ github.base_ref }}...HEAD"
+          elif git cat-file -e "${{ github.event.before }}" 2>/dev/null; then
+            range="${{ github.event.before }}..${{ github.sha }}"
+          else
+            range="HEAD~1..HEAD"
+          fi
+          files=$(git diff --name-only "$range")
+          printf 'changed:\n%s\n' "$files"
+          code=false; docs=false
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            case "$f" in
+              docs/*) docs=true ;;
+              demo/*|SECURITY.md|CONTRIBUTING.md|README.md|LICENSE|.github/ISSUE_TEMPLATE/*|.github/dependabot.yml) ;;
+              *) code=true ;;
+            esac
+          done <<<"$files"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "docs=$docs" >> "$GITHUB_OUTPUT"
   gate:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -24,7 +64,8 @@ jobs:
       - run: go test -race -count=1 ./...
 
   smoke:
-    needs: gate
+    needs: [changes, gate]
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -71,7 +112,8 @@ jobs:
   # archives ship for and nobody runs by hand: macOS on Apple silicon
   # and Windows under Git Bash. One pass each, no resets.
   smoke-os:
-    needs: gate
+    needs: [changes, gate]
+    if: needs.changes.outputs.code == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -133,6 +175,8 @@ jobs:
         run: tail -60 "$CI_DIR/server.log"
 
   docker:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -152,3 +196,20 @@ jobs:
           docker compose exec armite /app/armite hosts
       - if: always()
         run: docker compose down -v
+
+  docs:
+    needs: changes
+    if: needs.changes.outputs.docs == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: docs
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: docs/package-lock.json
+      - run: npm ci
+      - run: npm run build
