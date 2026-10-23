@@ -129,7 +129,4 @@ an issue titled "CCLA request" and the Maintainer will send it.
 
 ## Reporting a security issue
 
-Armite mints tokens and evaluates authorization, so a bug in either
-matters even though it only ever runs locally. Please report security
-issues privately to the Maintainer (contact in the repository profile)
-rather than in a public issue, and allow a fix before disclosure.
+See SECURITY.md: report privately through GitHub's advisory form, not in a public issue.

@@ -1,0 +1,28 @@
+# Weekly pull requests for the things that rot: the Actions we run, the
+# Go module graph (one dependency, but the toolchain line too), the
+# docs site's VitePress, and the image's base layers. Grouped so a week
+# is one PR per ecosystem, not five.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: npm
+    directory: /docs
+    schedule:
+      interval: weekly
+    groups:
+      docs:
+        patterns: ["*"]
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question
+    url: https://github.com/ioflux-org/armite/discussions/categories/q-a
+    about: How do I…? Ask in Discussions; answers there help the next person too.
+  - name: Security problem
+    url: https://github.com/ioflux-org/armite/security/advisories/new
+    about: Report privately. Please do not open a public issue for a vulnerability.

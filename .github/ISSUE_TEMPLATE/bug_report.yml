@@ -1,0 +1,62 @@
+name: Bug report
+description: Armite did something Azure would not do, or did not do something Azure does
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: The command or code you ran, what Armite answered, and what Azure would have answered.
+      placeholder: |
+        az keyvault secret set --vault-name kv-demo -n db-pass --value hunter2
+        → 500 InternalError; Azure returns 403 ForbiddenByRbac until a data role is granted
+    validations:
+      required: true
+  - type: textarea
+    id: request
+    attributes:
+      label: Request id and log line
+      description: Every response carries an `x-ms-request-id`; the server logs one line under it (`log.format: json` is easiest to paste). Secrets are never logged.
+      render: text
+  - type: input
+    id: version
+    attributes:
+      label: Armite version
+      description: The output of `armite version` (or the image tag).
+      placeholder: armite v0.1.3
+    validations:
+      required: true
+  - type: dropdown
+    id: route
+    attributes:
+      label: How Armite runs
+      options:
+        - Binary from the releases page
+        - go install
+        - Docker image
+        - From source (go run)
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Platform
+      placeholder: Ubuntu 24.04 / macOS 15 (Apple silicon) / Windows 11 / WSL2
+    validations:
+      required: true
+  - type: input
+    id: client
+    attributes:
+      label: Client and version
+      placeholder: az 2.90.0 / @azure/keyvault-secrets 4.9 / azurerm 4.x / curl
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Output of `armite doctor`
+      render: text
+  - type: textarea
+    id: config
+    attributes:
+      label: Configuration
+      description: The output of `armite config show` (secrets are masked), if you changed anything from the defaults.
+      render: yaml
