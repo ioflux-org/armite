@@ -6,6 +6,7 @@ import { defineConfig, type HeadConfig } from 'vitepress'
 const base = '/'
 const site = 'https://armite.cloud/'
 const repo = 'https://github.com/ioflux-org/armite'
+const version = process.env.ARMITE_VERSION ?? 'dev'
 
 // Microsoft Clarity (usage analytics) is injected only when the build
 // has a project id - the Docs workflow passes the repository variable
@@ -50,7 +51,10 @@ export default defineConfig({
     logo: { light: '/armite-logo.svg', dark: '/armite-logo-dark.svg', alt: 'Armite' },
     siteTitle: false,
 
-    nav: [{ text: 'Docs', link: '/getting-started' }],
+    nav: [
+      { text: 'Docs', link: '/getting-started' },
+      { text: version, link: version.startsWith('v') ? `${repo}/releases/tag/${version}` : `${repo}/releases` },
+    ],
 
     sidebar: [
       {
