@@ -1,0 +1,23 @@
+name: Feature request
+description: An Azure service or behaviour you want Armite to emulate
+labels: [enhancement]
+body:
+  - type: input
+    id: what
+    attributes:
+      label: What should Armite emulate
+      placeholder: Storage queues; Key Vault keys; custom role definitions; az ad sp create-for-rbac
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: What you would test with it
+      description: The scenario, in one paragraph. "My app does X against Y, and I want to know whether principal Z is allowed to."
+    validations:
+      required: true
+  - type: textarea
+    id: azure
+    attributes:
+      label: What Azure does
+      description: A link to the Azure docs or the REST reference for the behaviour, if you have one. Armite reproduces Azure, so this is the specification.
