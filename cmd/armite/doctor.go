@@ -10,12 +10,12 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
 	"time"
 
+	"github.com/ioflux-org/armite/internal/azurite"
 	"github.com/ioflux-org/armite/internal/config"
 	"github.com/ioflux-org/armite/internal/pki"
 )
@@ -27,6 +27,11 @@ type finding struct {
 	name   string
 	detail string
 }
+
+// stateEntries is everything the server writes into the data
+// directory; reset removes exactly these and refuses a directory that
+// holds anything else, except the cache, which it keeps.
+var stateEntries = []string{"journal", "journal.tmp", "snapshot", "snapshot.tmp", "azurite"}
 
 // runDoctor examines what a first run trips over - the home and data
 // directories, the hostnames, the ports, Azurite - and exits 1 when a
@@ -177,9 +182,9 @@ func azuriteFinding(cfg config.Config, running bool) finding {
 		resp.Body.Close()
 		return finding{"ok", "azurite " + cfg.Azurite.Upstream, "answers"}
 	}
-	path, err := exec.LookPath(cfg.Azurite.Command)
+	path, err := azurite.Find(cfg.Azurite.Command, azuriteInstallDir())
 	if err != nil {
-		return finding{"fail", "azurite", cfg.Azurite.Command + " is not on PATH: npm install -g azurite (storage accounts stay off until then)"}
+		return finding{"fail", "azurite", err.Error()}
 	}
 	port := fmt.Sprintf("127.0.0.1:%d", cfg.Azurite.Port)
 	if conn, err := net.DialTimeout("tcp", port, 500*time.Millisecond); err == nil {
@@ -235,10 +240,13 @@ func runReset(cfg config.Config, args []string) {
 			return
 		}
 	}
-	if err := os.RemoveAll(dir); err != nil {
-		log.Fatal(err)
+	for _, name := range stateEntries {
+		if err := os.RemoveAll(filepath.Join(dir, name)); err != nil {
+			log.Fatal(err)
+		}
 	}
-	fmt.Printf("removed %s; the next start begins empty, with the same CA\n", dir)
+	fmt.Printf("removed the state under %s; the next start begins empty, with the same CA "+
+		"(and the Azurite copy, if any, stays)\n", dir)
 }
 
 // looksLikeState refuses anything that is not Armite's data directory:
@@ -251,11 +259,10 @@ func looksLikeState(dir string) error {
 		return err
 	}
 	for _, e := range entries {
-		switch e.Name() {
-		case "journal", "journal.tmp", "snapshot", "snapshot.tmp", "azurite":
-		default:
-			return fmt.Errorf("it holds %q, which Armite did not create", e.Name())
+		if e.Name() == "cache" || slices.Contains(stateEntries, e.Name()) {
+			continue
 		}
+		return fmt.Errorf("it holds %q, which Armite did not create", e.Name())
 	}
 	return nil
 }

@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"runtime/debug"
@@ -151,10 +150,12 @@ func main() {
 	// boots as usual: zero files and zero installs to run Key Vault.
 	var accounts *storage.Provider
 	if cfg.Azurite.Mode == "managed" {
-		if _, err := exec.LookPath(cfg.Azurite.Command); err != nil {
-			log.Printf("Microsoft.Storage disabled: %s not found on PATH (npm install -g azurite), "+
-				"or point azurite.mode: byo at an Azurite you run", cfg.Azurite.Command)
+		path, err := azurite.Find(cfg.Azurite.Command, azuriteInstallDir())
+		if err != nil {
+			log.Printf("Microsoft.Storage disabled: %v; or point azurite.mode: byo at an Azurite you run", err)
 			cfg.Azurite.Mode = "off"
+		} else {
+			cfg.Azurite.Command = path
 		}
 	}
 	if cfg.Azurite.Mode != "off" {
@@ -296,6 +297,9 @@ func runCommand(cfg config.Config, path string, args []string) {
 	case "reset":
 		runReset(cfg, args[1:])
 		return
+	case "azurite":
+		runAzurite(args[1:])
+		return
 	}
 	if args[0] == "config" && len(args) > 1 {
 		switch args[1] {
@@ -340,7 +344,7 @@ func runCommand(cfg config.Config, path string, args []string) {
 		}
 	}
 	fmt.Fprintf(os.Stderr, "usage: armite [config init [file] | config show [--secrets] | "+
-		"config check | hosts | doctor | reset [-y] | version]\n")
+		"azurite install [version] | config check | hosts | doctor | reset [-y] | version]\n")
 	os.Exit(2)
 }
 

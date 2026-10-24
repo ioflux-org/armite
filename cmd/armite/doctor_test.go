@@ -34,6 +34,12 @@ func TestLooksLikeState(t *testing.T) {
 	if err := looksLikeState(dir); err != nil {
 		t.Errorf("Armite's files: %v", err)
 	}
+	if err := os.Mkdir(filepath.Join(dir, "cache"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := looksLikeState(dir); err != nil {
+		t.Errorf("the cache beside the state must be accepted: %v", err)
+	}
 	if err := os.WriteFile(filepath.Join(dir, "main.go"), nil, 0o600); err != nil {
 		t.Fatal(err)
 	}

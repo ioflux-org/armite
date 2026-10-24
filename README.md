@@ -67,9 +67,12 @@ which you have. All routes: [https://armite.cloud/install](https://armite.cloud/
 
 The server generates a private CA in `~/.armite/` at first boot, keeps what you create in your data directory (`~/.local/share/armite` on Linux), and serves `https://management.localhost:8443` (ARM), `https://login.localhost:8443` (Entra), `https://{vault}.vault.localhost:8443` (Key Vault data
 plane) and `https://{account}.blob.core.localhost:8443` (blobs), plus
-IMDS on `http://127.0.0.1:8081`. Storage accounts need `azurite-blob` on
-your PATH (`npm install -g azurite`; the Docker image has it) and are
-otherwise off. Two things every client needs:
+IMDS on `http://127.0.0.1:8081`.
+Storage accounts need Azurite: with Node.js on the machine, `armite
+azurite install` puts a pinned copy where the server finds it (the
+Docker image has it built in; `npm install -g azurite` works too) and
+they are otherwise off.
+Two things every client needs:
 
 1. **Hostnames** resolving to 127.0.0.1. Linux with systemd-resolved
    does it already; WSL2 and macOS need a one-time resolver fix or the

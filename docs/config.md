@@ -10,7 +10,8 @@ armite config show --secrets
 armite config check         # validate the file without starting the server
 armite hosts                # the /etc/hosts lines for every hostname the server answers to
 armite doctor               # checks the directories, hostnames, ports and Azurite the way a client would; exit 1 on a problem
-armite reset [-y]           # deletes the data directory (resources, assignments, secrets, blobs); the CA and keys stay
+armite reset [-y]           # deletes the state (resources, assignments, secrets, blobs); the CA, keys and the Azurite copy stay
+armite azurite install      # a pinned Azurite in Armite's cache, via your npm; the server finds it without PATH changes
 ```
 
 With `go run`, replace `armite` by `go run ./cmd/armite`.
@@ -37,6 +38,11 @@ Two places, following the platform's conventions:
   set), `~/Library/Application Support/armite` on macOS,
   `%LOCALAPPDATA%\armite` on Windows. Delete it to start over; the
   CA stays and clients stay trusted.
+- **The cache directory**: what `armite azurite install` downloads.
+  `~/.cache/armite` on Linux (`$XDG_CACHE_HOME/armite` when set),
+  `~/Library/Caches/armite` on macOS, `%LOCALAPPDATA%\armite\cache` on
+  Windows; `$ARMITE_HOME/cache` when `ARMITE_HOME` is set. Safe to
+  delete; `armite reset` leaves it alone.
 
 `ARMITE_HOME` moves the home directory and, so that one variable
 gives a container or a second instance a self-contained directory, puts
