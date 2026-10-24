@@ -54,9 +54,10 @@ git clone https://github.com/ioflux-org/armite && cd armite && go run ./cmd/armi
 
 ## Storage accounts
 
-Need `azurite-blob` on the PATH: `npm install -g azurite`. The image has
-it already. Without it, storage accounts are off and everything else
-works.
+Need Azurite. With Node.js installed, `armite azurite install` puts a
+pinned copy where the server finds it, no PATH changes; `npm install -g
+azurite` works too. The image has it already. Without it, storage
+accounts are off and everything else works.
 
 ## Upgrading
 

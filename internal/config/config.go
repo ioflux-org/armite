@@ -153,6 +153,27 @@ func DataDir() string {
 	return filepath.Join(Home(), "state")
 }
 
+// CacheDir is where Armite keeps what it can get again: the Azurite
+// copy "armite azurite install" puts there. Apart from the data
+// directory so "armite reset" never touches it, and from the home so
+// identity stays small. ARMITE_HOME, when set, keeps everything under
+// one root, as it does for the state. On Windows the platform's cache
+// folder is %LocalAppData%, which is already the data directory, so the
+// cache sits one level down.
+func CacheDir() string {
+	if v := os.Getenv("ARMITE_HOME"); v != "" {
+		return filepath.Join(v, "cache")
+	}
+	dir, err := os.UserCacheDir()
+	if err != nil {
+		return filepath.Join(os.TempDir(), "armite-cache")
+	}
+	if runtime.GOOS == "windows" {
+		return filepath.Join(dir, "armite", "cache")
+	}
+	return filepath.Join(dir, "armite")
+}
+
 // ConfigFile is the configuration file Home holds, when it exists.
 const ConfigFile = "armite.yaml"
 

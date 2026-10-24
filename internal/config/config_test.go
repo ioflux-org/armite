@@ -199,6 +199,19 @@ func TestHomeAndDataDir(t *testing.T) {
 		t.Errorf("an explicit ARMITE_HOME must be self-contained: %q %q", Home(),
 			Default().State.Dir)
 	}
+	if got := CacheDir(); got != filepath.Join("/data", "cache") {
+		t.Errorf("CacheDir with ARMITE_HOME = %q", got)
+	}
+	t.Setenv("ARMITE_HOME", "")
+	if base, err := os.UserCacheDir(); err == nil {
+		want := filepath.Join(base, "armite")
+		if runtime.GOOS == "windows" {
+			want = filepath.Join(base, "armite", "cache")
+		}
+		if got := CacheDir(); got != want {
+			t.Errorf("CacheDir = %q, want %q", got, want)
+		}
+	}
 }
 
 func TestFromEnv(t *testing.T) {

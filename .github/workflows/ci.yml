@@ -88,8 +88,8 @@ jobs:
         with:
           terraform_version: "1.16.4"
           terraform_wrapper: false
-      - name: Azurite, the blob store behind storage accounts
-        run: npm install -g azurite@3.37.0
+      - name: Azurite, the way a user gets it
+        run: ARMITE_HOME="$CI_DIR/home" go run ./cmd/armite azurite install
       - name: Hostnames
         run: ./scripts/ci/hosts.sh | sudo tee -a /etc/hosts && getent hosts kv-demo.vault.localhost
       - name: Start the server
