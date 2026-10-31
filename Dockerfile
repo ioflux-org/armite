@@ -4,7 +4,7 @@
 # The build stage runs on the builder's own platform and cross-compiles
 # for the target (Go needs no emulation for that); a multi-arch image is
 # one `docker buildx build --platform linux/amd64,linux/arm64`.
-FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS build
+FROM --platform=$BUILDPLATFORM golang:1.27-alpine AS build
 ARG TARGETOS TARGETARCH VERSION=dev
 WORKDIR /src
 COPY go.mod go.su[m] ./
