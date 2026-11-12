@@ -6,27 +6,16 @@ import (
 	"fmt"
 	"log"
 	"log/slog"
-	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"runtime/debug"
 	"strings"
 	"syscall"
-	"time"
 
-	"github.com/ioflux-org/armite/internal/azurite"
+	"github.com/ioflux-org/armite/internal/app"
 	"github.com/ioflux-org/armite/internal/config"
-	"github.com/ioflux-org/armite/internal/entra"
-	"github.com/ioflux-org/armite/internal/gateway"
-	"github.com/ioflux-org/armite/internal/httplog"
 	"github.com/ioflux-org/armite/internal/pki"
-	"github.com/ioflux-org/armite/internal/provider/authorization"
-	"github.com/ioflux-org/armite/internal/provider/keyvault"
-	"github.com/ioflux-org/armite/internal/provider/resources"
-	"github.com/ioflux-org/armite/internal/provider/storage"
-	"github.com/ioflux-org/armite/internal/rbac"
-	"github.com/ioflux-org/armite/internal/router"
 	"github.com/ioflux-org/armite/internal/state"
 	"github.com/ioflux-org/armite/internal/store"
 )
@@ -89,170 +78,26 @@ func main() {
 	if path != "" {
 		log.Printf("Loaded configuration from %s", path)
 	}
-	// The home directory holds the identity - CA, leaf certificate,
-	// signing key, state key - private to the user. The state lives in
-	// the data directory, cfg.State.Dir, which is disposable.
 	home := config.Home()
-	if err := os.MkdirAll(home, 0o700); err != nil {
-		log.Fatal(err)
-	}
-
-	caCert, caKey, err := pki.EnsureCA(home)
+	a, err := app.New(cfg, home)
 	if err != nil {
 		log.Fatal(err)
 	}
-	hosts := []string{cfg.ARMHost, cfg.LoginHost, "*." + cfg.VaultHost, "*." + cfg.BlobHost,
-		"*." + cfg.QueueHost(), "*." + cfg.TableHost(), "localhost", "127.0.0.1", "::1"}
-	certFile, keyFile, err := pki.IssueLeaf(caCert, caKey, hosts, home)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	signingKey, err := pki.EnsureSigningKey(home)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// The journal every store writes through. Its key lives next to the
-	// CA key, so the state directory alone cannot be read; a nil journal
-	// (state.dir empty) keeps everything in memory. Nothing is closed at
-	// exit: every append is already on disk, which is what lets the
-	// process be killed at any moment.
-	// The state key is loaded even when nothing persists: it is also the
-	// secret storage user delegation keys are derived from.
-	stateKey, err := state.LoadKey(home, cfg.State.Key)
-	if err != nil {
-		log.Fatal(err)
-	}
-	var journal *state.Log
-	if cfg.State.Dir != "" {
-		journal, err = state.Open(cfg.State.Dir, stateKey, int64(cfg.State.CompactAfterMB)<<20)
-		if err != nil {
-			log.Fatal(err)
-		}
-		log.Printf("Persisting state in %s", cfg.State.Dir)
-	}
-
-	defs, err := rbac.LoadBuiltinRoles()
-	if err != nil {
-		log.Fatal(err)
-	}
-	// The stores attach themselves to the journal as they are built;
-	// Replay then rebuilds them, before the seeds (which may already be
-	// there, replayed) and before anything serves.
-	assignments := rbac.NewAssignmentStore(journal)
-	resourceStore := store.New(journal)
-	vaults := keyvault.New(cfg, resourceStore, journal)
-	// Storage accounts live in the resource store; their keys in the
-	// provider's own. In managed mode the provider runs Azurite under the
-	// state directory, started after Replay with the accounts it knows.
-	// Without an azurite-blob to run, storage is off and everything else
-	// boots as usual: zero files and zero installs to run Key Vault.
-	var accounts *storage.Provider
-	if cfg.Azurite.Mode == "managed" {
-		path, err := azurite.Find(cfg.Azurite.Command, azuriteInstallDir())
-		if err != nil {
-			log.Printf("Microsoft.Storage disabled: %v; or point azurite.mode: byo at an Azurite you run", err)
-			cfg.Azurite.Mode = "off"
-		} else {
-			cfg.Azurite.Command = path
-		}
-	}
-	if cfg.Azurite.Mode != "off" {
-		var manager *azurite.Manager
-		if cfg.Azurite.Mode == "managed" {
-			manager = azurite.New(cfg.Azurite.Command,
-				filepath.Join(cmp.Or(cfg.State.Dir, os.TempDir()), "azurite"), cfg.Azurite.Port)
-		}
-		accounts, err = storage.New(cfg, resourceStore, journal, manager, stateKey)
-		if err != nil {
-			log.Fatal(err)
-		}
-	}
-	if err := journal.Replay(); err != nil {
-		log.Fatalf("%v (to start over: armite reset)", err)
-	}
-	if err := accounts.Start(); err != nil {
-		log.Fatal(err)
-	}
-	if err := rbac.Seed(assignments, defs, gateway.SeedAssignments(cfg)); err != nil {
-		log.Fatal(err)
-	}
-	checker := rbac.NewChecker(defs, assignments)
-
-	login := entra.New(cfg, signingKey)
-
-	registry := gateway.NewRegistry()
-	registry.Register("Microsoft.Resources", resources.New(cfg, resourceStore, registry.Catalog))
-	registry.Register("Microsoft.KeyVault", vaults)
-	registry.Register("Microsoft.Authorization", authorization.New(cfg, defs, assignments, time.Now))
-	// Every plane is wrapped the same way: a request id on the response
-	// and one log line per request. A nil blob plane stays nil - that is
-	// how the router knows storage is off.
-	var blobPlane http.Handler
-	if accounts != nil {
-		registry.Register("Microsoft.Storage", accounts)
-		blobPlane = httplog.Wrap("blob", accounts.DataPlane(&signingKey.PublicKey, time.Now, checker))
-	} else {
-		registry.Disable("Microsoft.Storage")
-	}
-
-	arm := httplog.Wrap("arm", gateway.New(cfg, &signingKey.PublicKey, time.Now, checker, registry))
-	dataPlane := httplog.Wrap("vault", vaults.DataPlane(&signingKey.PublicKey, time.Now, checker))
-	server := &http.Server{
-		Addr:    cfg.ListenerAddr,
-		Handler: router.New(cfg, httplog.Wrap("entra", login), arm, dataPlane, blobPlane),
-	}
-	imds := &http.Server{
-		Addr:    cfg.IMDSAddr,
-		Handler: httplog.Wrap("imds", entra.NewIMDS(cfg, signingKey)),
-	}
-
-	// Each server blocks its own goroutine; the first one to fail stops the
-	// process. The buffer lets the second sender finish without a receiver.
 	log.Printf("Serving %s (listening on %s); IMDS at %s (listening on %s)",
-		cfg.ARMBaseURL(), cfg.ListenerAddr, cfg.IMDSURL(), cfg.IMDSAddr)
-	for _, line := range nextSteps(cfg, home) {
+		a.Config.ARMBaseURL(), a.Config.ListenerAddr, a.Config.IMDSURL(), a.Config.IMDSAddr)
+	for _, line := range nextSteps(a.Config, home) {
 		log.Print(line)
 	}
-	errc := make(chan error, 2)
-	go func() { errc <- server.ListenAndServeTLS(certFile, keyFile) }()
-	go func() { errc <- imds.ListenAndServe() }()
-
-	// Run until a listener fails or someone asks us to stop. Ctrl-C and
-	// SIGTERM (kill, docker stop, systemd) both cancel the context.
-	// stop() restores the default behaviour, so a second Ctrl-C while
-	// stopping ends the process at once.
+	// Ctrl-C and SIGTERM (kill, docker stop, systemd) cancel the context
+	// and Serve stops cleanly. stop() restores the default behaviour as
+	// soon as the first signal lands, so a second Ctrl-C while stopping
+	// ends the process at once.
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	select {
-	case err := <-errc:
-		stop()
+	go func() { <-ctx.Done(); stop() }()
+	if err := a.Serve(ctx); err != nil {
 		log.Fatal(err)
-	case <-ctx.Done():
-		stop()
-		log.Print("Stopping")
 	}
-	shutdown(server, imds, accounts, journal)
-}
-
-// shutdown ends the process in the order that loses nothing: stop
-// accepting and let in-flight requests finish, then end Azurite (a
-// polite stop lets it flush its metadata), then close the journal.
-// Five seconds is the whole budget; a request slower than that is cut.
-func shutdown(server, imds *http.Server, accounts *storage.Provider, journal *state.Log) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	for _, s := range []*http.Server{server, imds} {
-		if err := s.Shutdown(ctx); err != nil {
-			log.Printf("stopping: %v", err)
-		}
-	}
-	if err := accounts.Stop(); err != nil {
-		log.Printf("stopping azurite: %v", err)
-	}
-	if err := journal.Close(); err != nil {
-		log.Printf("closing the journal: %v", err)
-	}
+	log.Print("Stopped")
 }
 
 // nextSteps is what the boot log owes a first run: the three things

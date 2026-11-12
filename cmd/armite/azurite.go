@@ -7,18 +7,8 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/ioflux-org/armite/internal/config"
+	"github.com/ioflux-org/armite/internal/azurite"
 )
-
-// azuriteVersion is the Azurite the server is tested against; keep it
-// in step with the Dockerfile and ci.yml.
-const azuriteVersion = "3.37.0"
-
-// azuriteInstallDir is where "armite azurite install" puts Azurite and
-// where the server and doctor look for it.
-func azuriteInstallDir() string {
-	return filepath.Join(config.CacheDir(), "azurite")
-}
 
 // runAzurite serves "armite azurite install [version]": a pinned
 // Azurite under the cache directory, installed with the npm on this
@@ -29,7 +19,7 @@ func runAzurite(args []string) {
 		fmt.Fprintln(os.Stderr, "usage: armite azurite install [version]")
 		os.Exit(2)
 	}
-	version := azuriteVersion
+	version := azurite.Version
 	if len(args) > 1 {
 		version = args[1]
 	}
@@ -38,7 +28,7 @@ func runAzurite(args []string) {
 		log.Fatal("npm is not on PATH: install Node.js LTS from https://nodejs.org (it brings npm) " +
 			"and run this again, or npm install -g azurite yourself")
 	}
-	dir := azuriteInstallDir()
+	dir := azurite.InstallDir()
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		log.Fatal(err)
 	}
