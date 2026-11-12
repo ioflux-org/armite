@@ -182,7 +182,7 @@ func azuriteFinding(cfg config.Config, running bool) finding {
 		resp.Body.Close()
 		return finding{"ok", "azurite " + cfg.Azurite.Upstream, "answers"}
 	}
-	path, err := azurite.Find(cfg.Azurite.Command, azuriteInstallDir())
+	path, err := azurite.Find(cfg.Azurite.Command, azurite.InstallDir())
 	if err != nil {
 		return finding{"fail", "azurite", err.Error()}
 	}
