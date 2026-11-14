@@ -7,6 +7,7 @@
 package directory
 
 import (
+	"crypto/pbkdf2"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
@@ -16,6 +17,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -32,6 +34,8 @@ const (
 	KindServicePrincipal = "servicePrincipal"
 	KindUser             = "user"
 	KindGroup            = "group"
+	kdfName              = "pbkdf2-sha256"
+	kdfIters             = 100_000
 )
 
 var (
@@ -428,35 +432,49 @@ func (s *Store) Dump(emit func(state.Record) error) error {
 	return nil
 }
 
-// hashSecret returns base64(salt) ":" base64(sha256(salt ‖ secret)).
-// A salted hash is enough for a local emulator's development secrets;
-// what matters is that the journal never holds the secret itself.
+// hashSecret derives a key from the secret with PBKDF2-HMAC-SHA256 and
+// a random salt and returns "pbkdf2-sha256$iterations$salt$key". A
+// password hash must be slow on purpose: a plain SHA-256 of a secret is
+// a dictionary attack away from the secret, and the journal is a file
+// on disk. The parameters travel with the hash, so they can change.
 func hashSecret(secret string) (string, error) {
 	salt := make([]byte, 16)
 	if _, err := rand.Read(salt); err != nil {
 		return "", err
 	}
-	sum := sha256.Sum256(append(salt, secret...))
-	return base64.StdEncoding.EncodeToString(salt) + ":" + base64.StdEncoding.EncodeToString(sum[:]), nil
+	key, err := pbkdf2.Key(sha256.New, secret, salt, kdfIters, 32)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%s$%d$%s$%s", kdfName, kdfIters,
+		base64.StdEncoding.EncodeToString(salt), base64.StdEncoding.EncodeToString(key)), nil
 }
 
-// verifySecret recomputes the hash with the stored salt and compares in
-// constant time, so a wrong secret takes as long as a right one.
+// verifySecret re-derives the key with the stored parameters and
+// compares in constant time, so a wrong secret takes as long as a
+// right one.
 func verifySecret(stored, secret string) bool {
-	saltB64, sumB64, ok := strings.Cut(stored, ":")
-	if !ok {
+	parts := strings.Split(stored, "$")
+	if len(parts) != 4 || parts[0] != kdfName {
 		return false
 	}
-	salt, err := base64.StdEncoding.DecodeString(saltB64)
+	iters, err := strconv.Atoi(parts[1])
+	if err != nil || iters < 1 {
+		return false
+	}
+	salt, err := base64.StdEncoding.DecodeString(parts[2])
 	if err != nil {
 		return false
 	}
-	want, err := base64.StdEncoding.DecodeString(sumB64)
+	want, err := base64.StdEncoding.DecodeString(parts[3])
 	if err != nil {
 		return false
 	}
-	sum := sha256.Sum256(append(salt, secret...))
-	return subtle.ConstantTimeCompare(sum[:], want) == 1
+	key, err := pbkdf2.Key(sha256.New, secret, salt, iters, len(want))
+	if err != nil {
+		return false
+	}
+	return subtle.ConstantTimeCompare(key, want) == 1
 }
 
 // hint is the first three characters, as Graph shows for a credential.
