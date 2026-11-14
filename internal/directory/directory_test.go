@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -109,6 +110,9 @@ func TestPasswordsAreShownOnceAndVerified(t *testing.T) {
 	expired, _, _ := s.AddPassword(sp.ID, "old", now.Add(-48*time.Hour), now.Add(-24*time.Hour))
 	if _, ok := s.Authenticate(app.AppID, expired); ok {
 		t.Error("an expired password logged in")
+	}
+	if !strings.HasPrefix(got.Passwords[0].Hash, "pbkdf2-sha256$") {
+		t.Errorf("hash = %q, want a pbkdf2-sha256 string with its parameters", got.Passwords[0].Hash)
 	}
 }
 
