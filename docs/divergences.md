@@ -53,6 +53,18 @@ limitation_ (unverified against a live subscription), _invention_
   `management.azure.com` and `management.core.windows.net`. _accepted
   limitation_
 
+## Directory (Microsoft Graph)
+
+- **No Graph permissions model.** Any principal with a token for the
+  Graph audience may read and change the directory; Azure requires
+  application permissions (Application.ReadWrite.All and friends).
+  _simplification_
+- **One tenant, no guests, no app roles, no OAuth2 permission grants.**
+  _deferred_
+- **OData subset:** `$filter` with `eq`, `and`, `startswith()`,
+  `/any(c:c eq)`; no `$select`, `$search`, `$count`, `$top`, `$orderby`
+  — what az sends; Terraform's needs are measured next. _simplification_
+
 ## RBAC
 
 - Built-in roles are a snapshot of the real 934 definitions (captured
