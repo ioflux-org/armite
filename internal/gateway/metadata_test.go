@@ -55,8 +55,8 @@ func TestEndpointsDocuments(t *testing.T) {
 	if doc.ResourceManager != "https://management.localhost:8443/" {
 		t.Errorf("resourceManager = %q", doc.ResourceManager)
 	}
-	if doc.Graph != doc.ResourceManager {
-		t.Errorf("microsoftGraphResourceId = %q, want the ARM host %q", doc.Graph, doc.ResourceManager)
+	if doc.Graph != cfg.GraphBaseURL()+"/" {
+		t.Errorf("microsoftGraphResourceId = %q, want the graph host %q", doc.Graph, cfg.GraphBaseURL()+"/")
 	}
 	if doc.Suffixes["keyVaultDns"] != "vault.localhost:8443" {
 		t.Errorf("suffixes.keyVaultDns = %q, want vault.localhost:8443", doc.Suffixes["keyVaultDns"])

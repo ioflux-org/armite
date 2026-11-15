@@ -72,6 +72,7 @@ type Config struct {
 	LoginHost            string           `yaml:"login_host"`
 	VaultHost            string           `yaml:"vault_host"`
 	BlobHost             string           `yaml:"blob_host"`
+	GraphHost            string           `yaml:"graph_host"`
 	ARMAudience          string           `yaml:"arm_audience"`
 	Clients              []Client         `yaml:"clients"`
 	IMDSAddr             string           `yaml:"imds_addr"`
@@ -189,6 +190,7 @@ func Default() Config {
 		LoginHost:            "login.localhost",
 		VaultHost:            "vault.localhost",
 		BlobHost:             "blob.core.localhost",
+		GraphHost:            "graph.localhost",
 		ARMAudience:          "https://management.azure.com",
 		Clients: []Client{{
 			ID:       "33333333-3333-3333-3333-333333333333",
@@ -215,6 +217,18 @@ func Default() Config {
 
 func (c Config) LoginBaseURL() string {
 	return c.baseURL(c.LoginHost)
+}
+
+// GraphBaseURL is the Microsoft Graph origin: the directory's plane,
+// published as microsoftGraphResourceId so az and Terraform find it.
+func (c Config) GraphBaseURL() string {
+	return c.baseURL(c.GraphHost)
+}
+
+// GraphAudience is the token audience the Graph plane demands: the
+// resource id az asks a token for (its scope is this + "/.default").
+func (c Config) GraphAudience() string {
+	return c.GraphBaseURL()
 }
 
 // ARMBaseURL is the management-plane origin clients register as their

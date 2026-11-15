@@ -18,7 +18,7 @@ func plane(name string) http.Handler {
 }
 
 func TestPlaneDispatch(t *testing.T) {
-	rt := New(config.Default(), plane("login"), plane("arm"), plane("vault"), plane("blob"))
+	rt := New(config.Default(), plane("login"), plane("arm"), plane("vault"), plane("blob"), plane("graph"))
 
 	tests := []struct {
 		name string
@@ -36,6 +36,8 @@ func TestPlaneDispatch(t *testing.T) {
 		{"blob host with port", "mystore.blob.core.localhost:8443", "blob"},
 		{"queue host goes to the blob plane too", "mystore.queue.core.localhost", "blob"},
 		{"bare blob suffix is not an account", "blob.core.localhost", "arm"},
+		{"graph host with port", "graph.localhost:8443", "graph"},
+		{"graph host without port", "graph.localhost", "graph"},
 	}
 
 	for _, tc := range tests {
@@ -49,7 +51,7 @@ func TestPlaneDispatch(t *testing.T) {
 }
 
 func TestStorageOffFallsThroughToARM(t *testing.T) {
-	rt := New(config.Default(), plane("login"), plane("arm"), plane("vault"), nil)
+	rt := New(config.Default(), plane("login"), plane("arm"), plane("vault"), nil, plane("graph"))
 	req := httptest.NewRequest(http.MethodGet, "https://mystore.blob.core.localhost:8443/", nil)
 	res := httptest.NewRecorder()
 	rt.ServeHTTP(res, req)

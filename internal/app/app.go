@@ -75,7 +75,7 @@ func New(cfg config.Config, home string) (a *App, err error) {
 	if err != nil {
 		return nil, err
 	}
-	hosts := []string{cfg.ARMHost, cfg.LoginHost, "*." + cfg.VaultHost, "*." + cfg.BlobHost,
+	hosts := []string{cfg.ARMHost, cfg.LoginHost, cfg.GraphHost, "*." + cfg.VaultHost, "*." + cfg.BlobHost,
 		"*." + cfg.QueueHost(), "*." + cfg.TableHost(), "localhost", "127.0.0.1", "::1"}
 	certFile, keyFile, err := pki.IssueLeaf(caCert, caKey, hosts, home)
 	if err != nil {
@@ -167,7 +167,7 @@ func New(cfg config.Config, home string) (a *App, err error) {
 		imdsLn:   imdsLn,
 		certFile: certFile,
 		keyFile:  keyFile,
-		server:   &http.Server{Handler: router.New(cfg, httplog.Wrap("entra", login), arm, dataPlane, blobPlane)},
+		server:   &http.Server{Handler: router.New(cfg, httplog.Wrap("entra", login), arm, dataPlane, blobPlane, nil)},
 		imds:     &http.Server{Handler: httplog.Wrap("imds", entra.NewIMDS(cfg, signingKey))},
 		accounts: accounts,
 		journal:  journal,
