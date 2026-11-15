@@ -42,11 +42,9 @@ func endpointsFor(cfg config.Config) endpointsDocument {
 			IdentityProvider: "AAD",
 		},
 		ResourceManager: cfg.ARMBaseURL() + "/",
-		// az builds a Graph client before listing role assignments and
-		// refuses to run without this endpoint. Pointing it at the ARM
-		// host makes the principal-name lookup fail with an HTTP error,
-		// which az tolerates; a connection failure it would not.
-		MicrosoftGraphResourceID: cfg.ARMBaseURL() + "/",
+		// az builds its Graph client from this: the directory plane, so
+		// az ad and the principal names in az role assignment list work.
+		MicrosoftGraphResourceID: cfg.GraphBaseURL() + "/",
 		// Clients build "{account}.blob." + this suffix to reach a storage
 		// account; Terraform refuses to start without it.
 		Suffixes: map[string]string{

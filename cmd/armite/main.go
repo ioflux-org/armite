@@ -114,7 +114,7 @@ func nextSteps(cfg config.Config, home string) []string {
 			"publish 8081 too for managed-identity clients"
 	}
 	return []string{
-		"Next: 1. " + cfg.ARMHost + ", " + cfg.LoginHost + ", *." + cfg.VaultHost + " and *." +
+		"Next: 1. " + cfg.ARMHost + ", " + cfg.LoginHost + ", " + cfg.GraphHost + ", *." + cfg.VaultHost + " and *." +
 			cfg.BlobHost + " must resolve to this machine - `armite hosts` prints the " +
 			"/etc/hosts lines; Linux with systemd-resolved needs nothing (see docs/dns.md)",
 		"      2. " + trust,
@@ -198,7 +198,7 @@ func runCommand(cfg config.Config, path string, args []string) {
 // and table twins included, for Terraform), read without touching the
 // files so it works beside a running server.
 func hostNames(cfg config.Config) ([]string, error) {
-	names := []string{cfg.ARMHost, cfg.LoginHost}
+	names := []string{cfg.ARMHost, cfg.LoginHost, cfg.GraphHost}
 	if _, err := os.Stat(cfg.State.Dir); cfg.State.Dir != "" && err == nil {
 		key, err := state.LoadKey(config.Home(), cfg.State.Key)
 		if err != nil {

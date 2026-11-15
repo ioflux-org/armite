@@ -90,17 +90,18 @@ func (c Config) Validate() error {
 	host("login_host", c.LoginHost)
 	host("vault_host", c.VaultHost)
 	host("blob_host", c.BlobHost)
+	host("graph_host", c.GraphHost)
 	if !strings.HasPrefix(c.BlobHost, "blob.") || len(c.BlobHost) == len("blob.") {
 		fail("blob_host", fmt.Sprintf("%q must start with \"blob.\" "+
 			"(clients build {account}.blob.{suffix})", c.BlobHost))
 	}
 	hosts := map[string]bool{}
-	for _, h := range []string{c.ARMHost, c.LoginHost, c.VaultHost, c.BlobHost} {
+	for _, h := range []string{c.ARMHost, c.LoginHost, c.VaultHost, c.BlobHost, c.GraphHost} {
 		hosts[h] = true
 	}
-	if len(hosts) != 4 {
-		fail("arm_host/login_host/vault_host/blob_host",
-			"must be four different hostnames (the router dispatches on them)")
+	if len(hosts) != 5 {
+		fail("arm_host/login_host/vault_host/blob_host/graph_host",
+			"must be five different hostnames (the router dispatches on them)")
 	}
 	if !strings.HasPrefix(c.ARMAudience, "https://") {
 		fail("arm_audience", fmt.Sprintf("%q must be an https:// URL", c.ARMAudience))
@@ -269,6 +270,7 @@ func Template() ([]byte, error) {
 		{"arm_host", "Bare hostnames; each must resolve to this machine (see docs/clients.md).", ""},
 		{"vault_host", "", "vaults are {name}.vault_host"},
 		{"blob_host", "", "storage accounts are {name}.blob_host; must start with blob."},
+		{"graph_host", "", "Microsoft Graph, the directory (az ad): applications, service principals, users, groups"},
 		{"arm_audience", "", "the ARM token audience clients ask for"},
 		{"clients", "Service principals that can log in with client_credentials.", ""},
 		{"imds_addr", "", "managed identity endpoint (AZURE_POD_IDENTITY_AUTHORITY_HOST)"},

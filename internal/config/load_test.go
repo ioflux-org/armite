@@ -127,7 +127,7 @@ func TestValidateNamesEveryProblem(t *testing.T) {
 	same := Default()
 	same.BlobHost = "blob.localhost"
 	same.VaultHost = "blob.localhost"
-	if err := same.Validate(); err == nil || !strings.Contains(err.Error(), "four different") {
+	if err := same.Validate(); err == nil || !strings.Contains(err.Error(), "five different") {
 		t.Errorf("two planes on one hostname must be refused: %v", err)
 	}
 }

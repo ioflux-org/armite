@@ -16,6 +16,7 @@ type Router struct {
 	arm   http.Handler
 	vault http.Handler
 	blob  http.Handler
+	graph http.Handler
 }
 
 // New returns a Router sending cfg.LoginHost to login, any subdomain of
@@ -24,8 +25,8 @@ type Router struct {
 // hosts too, which blob answers for - and everything else, unknown
 // hosts included, to arm. A nil blob handler means storage is off: its
 // hosts fall through to arm.
-func New(cfg config.Config, login, arm, vault, blob http.Handler) *Router {
-	return &Router{cfg: cfg, login: login, arm: arm, vault: vault, blob: blob}
+func New(cfg config.Config, login, arm, vault, blob, graph http.Handler) *Router {
+	return &Router{cfg: cfg, login: login, arm: arm, vault: vault, blob: blob, graph: graph}
 }
 
 func (rt *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -39,6 +40,8 @@ func (rt *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		rt.vault.ServeHTTP(w, r)
 	case rt.blob != nil && rt.isStorageHost(host):
 		rt.blob.ServeHTTP(w, r)
+	case rt.graph != nil && host == rt.cfg.GraphHost:
+		rt.graph.ServeHTTP(w, r)
 	default:
 		rt.arm.ServeHTTP(w, r)
 	}
