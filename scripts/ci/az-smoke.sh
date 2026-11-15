@@ -58,7 +58,11 @@ ok "az login"
 [ "$(tsv ad sp show --id 33333333-3333-3333-3333-333333333333 --query id)" = "$OID" ] ||
     fail "az ad sp show through Graph"
 ok "az ad sp show finds the built-in principal through Graph"
-[ "$(tsv role assignment list --query "[?principalId=='$OID'].principalName | [0]")" = "armite-client-33333333" ] ||
+
+# A role assignment listing names its principals through Graph: az shows
+# a service principal by its first servicePrincipalName, the appId, as
+# in Azure (blank here until the directory existed).
+[ "$(tsv role assignment list --query "[?principalId=='$OID'].principalName | [0]")" = "33333333-3333-3333-3333-333333333333" ] ||
     fail "principal names come from Graph"
 ok "role assignment list names the principal"
 
