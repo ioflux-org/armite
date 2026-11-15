@@ -1,6 +1,7 @@
 package app_test
 
 import (
+	"net/url"
 	"strings"
 	"testing"
 
@@ -82,5 +83,18 @@ func TestStateSurvivesARestart(t *testing.T) {
 	if st, body := s2.Do("GET", s2.App.Config.ARMBaseURL()+group, s2.Token(client, secret, armScope),
 		""); st != 200 || !strings.Contains(body, `"kept"`) {
 		t.Fatalf("after restart: %d %s", st, body)
+	}
+}
+
+// The directory answers on the graph host with a Graph token: the way
+// az ad sp show finds a principal.
+func TestGraphListsTheSeededPrincipal(t *testing.T) {
+	s := apptest.Start(t)
+	cfg := s.App.Config
+	tok := s.Token(client, secret, cfg.GraphAudience()+"/.default")
+	q := url.Values{"$filter": {"servicePrincipalNames/any(c:c eq '" + client + "')"}}
+	st, body := s.Do("GET", cfg.GraphBaseURL()+"/v1.0/servicePrincipals?"+q.Encode(), tok, "")
+	if st != 200 || !strings.Contains(body, ownerObject) {
+		t.Fatalf("graph list: %d %s", st, body)
 	}
 }

@@ -53,6 +53,15 @@ az login --service-principal -u 33333333-3333-3333-3333-333333333333 -p armite-s
 [ "$(tsv account show --query id)" = "$SUB" ] || fail "login did not land in the subscription"
 ok "az login"
 
+# The directory through Graph: az finds the built-in principal, and a
+# role assignment listing names it instead of showing a blank.
+[ "$(tsv ad sp show --id 33333333-3333-3333-3333-333333333333 --query id)" = "$OID" ] ||
+    fail "az ad sp show through Graph"
+ok "az ad sp show finds the built-in principal through Graph"
+[ "$(tsv role assignment list --query "[?principalId=='$OID'].principalName | [0]")" = "armite-client-33333333" ] ||
+    fail "principal names come from Graph"
+ok "role assignment list names the principal"
+
 # Key Vault: the README demo.
 az group create -n kv-rg -l eastus -o none
 az keyvault create -n kv-demo -g kv-rg -l eastus --enable-rbac-authorization -o none

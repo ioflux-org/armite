@@ -18,8 +18,10 @@ import (
 
 	"github.com/ioflux-org/armite/internal/azurite"
 	"github.com/ioflux-org/armite/internal/config"
+	"github.com/ioflux-org/armite/internal/directory"
 	"github.com/ioflux-org/armite/internal/entra"
 	"github.com/ioflux-org/armite/internal/gateway"
+	"github.com/ioflux-org/armite/internal/graph"
 	"github.com/ioflux-org/armite/internal/httplog"
 	"github.com/ioflux-org/armite/internal/pki"
 	"github.com/ioflux-org/armite/internal/provider/authorization"
@@ -109,6 +111,10 @@ func New(cfg config.Config, home string) (a *App, err error) {
 	// serves.
 	assignments := rbac.NewAssignmentStore(journal)
 	resourceStore := store.New(journal)
+	dir := directory.New(journal)
+	if err := dir.Seed(cfg); err != nil {
+		return nil, err
+	}
 	vaults := keyvault.New(cfg, resourceStore, journal)
 	var accounts *storage.Provider
 	if cfg.Azurite.Mode == "managed" {
@@ -159,6 +165,7 @@ func New(cfg config.Config, home string) (a *App, err error) {
 	}
 	arm := httplog.Wrap("arm", gateway.New(cfg, &signingKey.PublicKey, time.Now, checker, registry))
 	dataPlane := httplog.Wrap("vault", vaults.DataPlane(&signingKey.PublicKey, time.Now, checker))
+	graphPlane := httplog.Wrap("graph", graph.New(cfg, dir, &signingKey.PublicKey, time.Now))
 
 	return &App{
 		Config:   cfg,
@@ -167,7 +174,7 @@ func New(cfg config.Config, home string) (a *App, err error) {
 		imdsLn:   imdsLn,
 		certFile: certFile,
 		keyFile:  keyFile,
-		server:   &http.Server{Handler: router.New(cfg, httplog.Wrap("entra", login), arm, dataPlane, blobPlane, nil)},
+		server:   &http.Server{Handler: router.New(cfg, httplog.Wrap("entra", login), arm, dataPlane, blobPlane, graphPlane)},
 		imds:     &http.Server{Handler: httplog.Wrap("imds", entra.NewIMDS(cfg, signingKey))},
 		accounts: accounts,
 		journal:  journal,
