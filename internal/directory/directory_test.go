@@ -3,6 +3,7 @@ package directory
 import (
 	"bytes"
 	"errors"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -163,5 +164,23 @@ func TestCreatedObjectsAndChangedSeedsSurviveARestart(t *testing.T) {
 	}
 	if _, ok := s3.Authenticate(cfg.Clients[0].ID, cfg.Clients[0].Secret); !ok {
 		t.Error("the journaled credential stopped working after the file changed")
+	}
+}
+
+func TestSecretsAreSafeToPaste(t *testing.T) {
+	safe := regexp.MustCompile(`^[0-9a-f]{64}$`)
+	seen := map[string]bool{}
+	for range 200 {
+		s, err := newSecret()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !safe.MatchString(s) {
+			t.Fatalf("secret %q is not 64 hex characters", s)
+		}
+		if seen[s] {
+			t.Fatalf("secret %q came out twice", s)
+		}
+		seen[s] = true
 	}
 }
