@@ -327,11 +327,10 @@ func (s *Store) Delete(id string) error {
 // AddPassword adds a client secret to an application or service
 // principal and returns the secret, which is never stored.
 func (s *Store) AddPassword(id, displayName string, start, end time.Time) (secret string, p Password, err error) {
-	raw := make([]byte, 32)
-	if _, err := rand.Read(raw); err != nil {
+	secret, err = newSecret()
+	if err != nil {
 		return "", Password{}, err
 	}
-	secret = base64.RawURLEncoding.EncodeToString(raw)
 	hash, err := hashSecret(secret)
 	if err != nil {
 		return "", Password{}, err
@@ -345,6 +344,18 @@ func (s *Store) AddPassword(id, displayName string, start, end time.Time) (secre
 		return nil
 	})
 	return secret, p, err
+}
+
+// newSecret is 256 random bits as 64 hex characters: nothing a shell,
+// a YAML file or a command line can misread. A base64url secret starts
+// with "-" once in 64, and "az login -p -abc" then fails as an unknown
+// option.
+func newSecret() (string, error) {
+	raw := make([]byte, 32)
+	if _, err := rand.Read(raw); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(raw), nil
 }
 
 // RemovePassword removes the credential with keyID.

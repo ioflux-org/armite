@@ -1,7 +1,8 @@
 // Package graph serves the Microsoft Graph subset Armite's directory
 // needs: what az ad, az role assignment and the azuread Terraform
 // provider send. One plane behind the graph host, every request with a
-// token for the Graph audience. This file routes and answers reads.
+// token for the Graph audience. This file routes and answers reads;
+// writes.go creates, changes and deletes.
 package graph
 
 import (
@@ -29,6 +30,7 @@ type Plane struct {
 	cfg  config.Config
 	dir  *directory.Store
 	auth *gateway.Authenticator
+	now  func() time.Time
 	mux  *http.ServeMux
 }
 
@@ -36,12 +38,17 @@ type Plane struct {
 // publishes; https://graph.microsoft.com is accepted too, for clients
 // that hardcode it.
 func New(cfg config.Config, dir *directory.Store, pub *rsa.PublicKey, now func() time.Time) *Plane {
-	p := &Plane{cfg: cfg, dir: dir, mux: http.NewServeMux(),
+	p := &Plane{cfg: cfg, dir: dir, now: now, mux: http.NewServeMux(),
 		auth: gateway.NewAuthenticatorFor(cfg, pub, now, cfg.GraphAudience(), "https://graph.microsoft.com")}
 	p.mux.HandleFunc("GET /v1.0/me", p.serveMe)
 	p.mux.HandleFunc("POST /v1.0/directoryObjects/getByIds", p.serveGetByIds)
 	p.mux.HandleFunc("GET /v1.0/{collection}", p.serveList)
+	p.mux.HandleFunc("POST /v1.0/{collection}", p.serveCreate)
 	p.mux.HandleFunc("GET /v1.0/{collection}/{key}", p.serveGet)
+	p.mux.HandleFunc("PATCH /v1.0/{collection}/{key}", p.serveUpdate)
+	p.mux.HandleFunc("DELETE /v1.0/{collection}/{key}", p.serveDelete)
+	p.mux.HandleFunc("POST /v1.0/{collection}/{key}/addPassword", p.serveAddPassword)
+	p.mux.HandleFunc("POST /v1.0/{collection}/{key}/removePassword", p.serveRemovePassword)
 	p.mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "Request_ResourceNotFound",
 			"Resource not found for the segment '"+strings.Trim(r.URL.Path, "/")+"'.")
@@ -86,14 +93,8 @@ func (p *Plane) serveList(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *Plane) serveGet(w http.ResponseWriter, r *http.Request) {
-	kind, ok := collections[r.PathValue("collection")]
+	o, ok := p.target(w, r)
 	if !ok {
-		notFound(w, r.PathValue("collection"))
-		return
-	}
-	o, ok := p.lookup(kind, r.PathValue("key"))
-	if !ok {
-		notFound(w, r.PathValue("key"))
 		return
 	}
 	gateway.WriteJSON(w, http.StatusOK, wire(o))

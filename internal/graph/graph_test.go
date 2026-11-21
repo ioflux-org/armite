@@ -144,3 +144,129 @@ func TestErrorsHaveGraphShape(t *testing.T) {
 		}
 	}
 }
+
+func errCode(out map[string]any) any {
+	e, _ := out["error"].(map[string]any)
+	return e["code"]
+}
+
+// The az ad sp create-for-rbac sequence, request for request: an
+// application, a password on it, a service principal for it.
+func TestCreateApplicationPasswordAndServicePrincipal(t *testing.T) {
+	p, _, tok := newPlane(t)
+	code, app := call(t, p, "POST", "/v1.0/applications", tok, `{"displayName":"ci-app","keyCredentials":[]}`)
+	appObj, _ := app["id"].(string)
+	appID, _ := app["appId"].(string)
+	if code != 201 || appObj == "" || appID == "" || app["displayName"] != "ci-app" {
+		t.Fatalf("create application: %d %v", code, app)
+	}
+	code, cred := call(t, p, "POST", "/v1.0/applications/"+appObj+"/addPassword", tok,
+		`{"passwordCredential":{"displayName":"rbac","startDateTime":"2026-11-12T12:39:20Z","endDateTime":"2126-11-12T12:39:20Z"}}`)
+	secret, _ := cred["secretText"].(string)
+	if code != 200 || len(secret) != 64 || cred["keyId"] == "" || cred["hint"] != secret[:3] ||
+		cred["endDateTime"] != "2126-11-12T12:39:20Z" || cred["displayName"] != "rbac" {
+		t.Fatalf("addPassword: %d %v", code, cred)
+	}
+	code, sp := call(t, p, "POST", "/v1.0/servicePrincipals", tok, `{"appId":"`+appID+`","accountEnabled":true}`)
+	if code != 201 || sp["appId"] != appID || sp["displayName"] != "ci-app" || sp["servicePrincipalType"] != "Application" {
+		t.Fatalf("create service principal: %d %v", code, sp)
+	}
+
+	// The secret is never shown again, and the directory accepts it.
+	_, got := call(t, p, "GET", "/v1.0/applications/"+appObj, tok, "")
+	creds, _ := got["passwordCredentials"].([]any)
+	if len(creds) != 1 || creds[0].(map[string]any)["secretText"] != nil || creds[0].(map[string]any)["hint"] != secret[:3] {
+		t.Errorf("credentials after addPassword: %v", creds)
+	}
+	if o, ok := p.dir.Authenticate(appID, secret); !ok || o.ID != sp["id"] {
+		t.Errorf("the directory does not accept the secret Graph returned: %+v %v", o, ok)
+	}
+
+	if code, out := call(t, p, "POST", "/v1.0/servicePrincipals", tok, `{"appId":"`+appID+`"}`); code != 409 ||
+		errCode(out) != "Request_MultipleObjectsWithSameKeyValue" {
+		t.Errorf("a second service principal for one application: %d %v", code, out)
+	}
+	if code, out := call(t, p, "POST", "/v1.0/servicePrincipals", tok,
+		`{"appId":"00000000-0000-0000-0000-000000000000"}`); code != 400 || errCode(out) != "Request_BadRequest" {
+		t.Errorf("a service principal for no application: %d %v", code, out)
+	}
+	if code, out := call(t, p, "POST", "/v1.0/applications", tok, `{}`); code != 400 || errCode(out) != "Request_BadRequest" {
+		t.Errorf("an application without a displayName: %d %v", code, out)
+	}
+	if code, out := call(t, p, "POST", "/v1.0/users", tok, `{"displayName":"u"}`); code != 501 || errCode(out) != "NotImplemented" {
+		t.Errorf("creating a user is not served yet: %d %v", code, out)
+	}
+}
+
+func TestPatchRemovePasswordAndDelete(t *testing.T) {
+	p, cfg, tok := newPlane(t)
+	_, app := call(t, p, "POST", "/v1.0/applications", tok, `{"displayName":"temp"}`)
+	appObj, appID := app["id"].(string), app["appId"].(string)
+	_, sp := call(t, p, "POST", "/v1.0/servicePrincipals", tok, `{"appId":"`+appID+`"}`)
+	spObj := sp["id"].(string)
+
+	// No dates: the credential starts now and lasts two years.
+	code, cred := call(t, p, "POST", "/v1.0/servicePrincipals/"+spObj+"/addPassword", tok, "")
+	secret, _ := cred["secretText"].(string)
+	start, _ := time.Parse(time.RFC3339, cred["startDateTime"].(string))
+	end, _ := time.Parse(time.RFC3339, cred["endDateTime"].(string))
+	if code != 200 || secret == "" || end.Sub(start) < 729*24*time.Hour {
+		t.Fatalf("addPassword with no body: %d %v", code, cred)
+	}
+	if _, ok := p.dir.Authenticate(appID, secret); !ok {
+		t.Error("a password on the service principal must log in")
+	}
+
+	// PATCH changes only what it names.
+	if code, out := call(t, p, "PATCH", "/v1.0/applications/"+appObj, tok, `{"displayName":"renamed"}`); code != 204 {
+		t.Fatalf("patch application: %d %v", code, out)
+	}
+	if _, got := call(t, p, "GET", "/v1.0/applications/"+appObj, tok, ""); got["displayName"] != "renamed" || got["appId"] != appID {
+		t.Errorf("after the patch: %v", got)
+	}
+	if code, _ := call(t, p, "PATCH", "/v1.0/servicePrincipals/"+spObj, tok, `{"accountEnabled":false}`); code != 204 {
+		t.Errorf("disable the service principal: %d", code)
+	}
+	if _, got := call(t, p, "GET", "/v1.0/servicePrincipals/"+spObj, tok, ""); got["accountEnabled"] != false || got["displayName"] != "temp" {
+		t.Errorf("after disabling: %v", got)
+	}
+	if _, ok := p.dir.Authenticate(appID, secret); ok {
+		t.Error("a disabled service principal still logs in")
+	}
+
+	keyID := cred["keyId"].(string)
+	if code, _ := call(t, p, "POST", "/v1.0/servicePrincipals/"+spObj+"/removePassword", tok, `{"keyId":"`+keyID+`"}`); code != 204 {
+		t.Errorf("removePassword: %d", code)
+	}
+	if code, out := call(t, p, "POST", "/v1.0/servicePrincipals/"+spObj+"/removePassword", tok, `{"keyId":"`+keyID+`"}`); code != 400 ||
+		errCode(out) != "Request_BadRequest" {
+		t.Errorf("removePassword twice: %d %v", code, out)
+	}
+
+	// Deleting the application takes its service principal with it.
+	if code, _ := call(t, p, "DELETE", "/v1.0/applications/"+appObj, tok, ""); code != 204 {
+		t.Errorf("delete application: %d", code)
+	}
+	if code, _ := call(t, p, "GET", "/v1.0/servicePrincipals/"+spObj, tok, ""); code != 404 {
+		t.Errorf("the service principal outlived its application: %d", code)
+	}
+	if code, out := call(t, p, "DELETE", "/v1.0/applications/"+appObj, tok, ""); code != 404 || errCode(out) != "Request_ResourceNotFound" {
+		t.Errorf("delete twice: %d %v", code, out)
+	}
+
+	// The configuration's identities can be changed, not deleted.
+	seed := cfg.Clients[0]
+	if code, out := call(t, p, "DELETE", "/v1.0/servicePrincipals/"+seed.ObjectID, tok, ""); code != 403 ||
+		errCode(out) != "Authorization_RequestDenied" {
+		t.Errorf("deleting the configured service principal: %d %v", code, out)
+	}
+	q := url.Values{"$filter": {"appId eq '" + seed.ID + "'"}}
+	_, list := call(t, p, "GET", "/v1.0/applications?"+q.Encode(), tok, "")
+	seedApp := list["value"].([]any)[0].(map[string]any)["id"].(string)
+	if code, _ := call(t, p, "PATCH", "/v1.0/applications/"+seedApp, tok, `{"displayName":"mine now"}`); code != 204 {
+		t.Errorf("renaming the configured application: %d", code)
+	}
+	if code, out := call(t, p, "DELETE", "/v1.0/applications/"+seedApp, tok, ""); code != 403 {
+		t.Errorf("deleting the configured application, even after a change: %d %v", code, out)
+	}
+}

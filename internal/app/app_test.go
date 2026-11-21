@@ -1,6 +1,7 @@
 package app_test
 
 import (
+	"encoding/json"
 	"net/url"
 	"strings"
 	"testing"
@@ -96,5 +97,75 @@ func TestGraphListsTheSeededPrincipal(t *testing.T) {
 	st, body := s.Do("GET", cfg.GraphBaseURL()+"/v1.0/servicePrincipals?"+q.Encode(), tok, "")
 	if st != 200 || !strings.Contains(body, ownerObject) {
 		t.Fatalf("graph list: %d %s", st, body)
+	}
+}
+
+// field is the string property name of a JSON object.
+func field(t *testing.T, body, name string) string {
+	t.Helper()
+	var m map[string]any
+	if err := json.Unmarshal([]byte(body), &m); err != nil {
+		t.Fatalf("not a JSON object: %s", body)
+	}
+	v, _ := m[name].(string)
+	if v == "" {
+		t.Fatalf("no %q in %s", name, body)
+	}
+	return v
+}
+
+// The az ad sp create-for-rbac flow over real HTTPS: a service
+// principal created through Graph a moment ago logs in with the secret
+// Graph showed once, is refused by ARM until a role is assigned, gets
+// the role on the first try, and is then allowed exactly what the role
+// allows.
+func TestAServicePrincipalCreatedThroughGraph(t *testing.T) {
+	s := apptest.Start(t)
+	cfg := s.App.Config
+	graph, arm := cfg.GraphBaseURL()+"/v1.0", cfg.ARMBaseURL()
+	graphTok := s.Token(client, secret, cfg.GraphAudience()+"/.default")
+	ownerTok := s.Token(client, secret, armScope)
+
+	st, body := s.Do("POST", graph+"/applications", graphTok, `{"displayName":"ci-app","keyCredentials":[]}`)
+	if st != 201 {
+		t.Fatalf("create application: %d %s", st, body)
+	}
+	appObject, appID := field(t, body, "id"), field(t, body, "appId")
+	st, body = s.Do("POST", graph+"/applications/"+appObject+"/addPassword", graphTok,
+		`{"passwordCredential":{"displayName":"rbac"}}`)
+	if st != 200 {
+		t.Fatalf("addPassword: %d %s", st, body)
+	}
+	newSecret := field(t, body, "secretText")
+	st, body = s.Do("POST", graph+"/servicePrincipals", graphTok, `{"appId":"`+appID+`","accountEnabled":true}`)
+	if st != 201 {
+		t.Fatalf("create service principal: %d %s", st, body)
+	}
+	spObject := field(t, body, "id")
+
+	// It logs in at once, and has no role yet.
+	spTok := s.Token(appID, newSecret, armScope)
+	groups := arm + sub + "/resourcegroups?api-version=2021-04-01"
+	if st, body := s.Do("GET", groups, spTok, ""); st != 403 || !strings.Contains(body, "AuthorizationFailed") ||
+		!strings.Contains(body, spObject) {
+		t.Fatalf("before any role: %d %s, want 403 AuthorizationFailed naming the new principal", st, body)
+	}
+
+	// Owner grants Reader; no principalType sent, the directory supplies it.
+	grant := arm + sub + "/providers/Microsoft.Authorization/roleAssignments/" +
+		"0f0f0f0f-0000-4000-8000-000000000002?api-version=2022-04-01"
+	grantBody := `{"properties":{"roleDefinitionId":"` + sub + "/providers/Microsoft.Authorization/roleDefinitions/" +
+		config.ReaderRoleID + `","principalId":"` + spObject + `"}}`
+	if st, body := s.Do("PUT", grant, ownerTok, grantBody); st != 201 || !strings.Contains(body, `"principalType":"ServicePrincipal"`) {
+		t.Fatalf("grant Reader: %d %s", st, body)
+	}
+
+	// Reader reads and cannot write.
+	if st, body := s.Do("GET", groups, spTok, ""); st != 200 {
+		t.Fatalf("list as Reader: %d %s", st, body)
+	}
+	if st, body := s.Do("PUT", arm+sub+"/resourcegroups/nope?api-version=2021-04-01", spTok,
+		`{"location":"eastus"}`); st != 403 || !strings.Contains(body, "AuthorizationFailed") {
+		t.Fatalf("create as Reader: %d %s, want 403", st, body)
 	}
 }

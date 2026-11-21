@@ -113,4 +113,22 @@ ID=$(curl -sS $CURL_REVOKE --cacert "$REQUESTS_CA_BUNDLE" -D - -o "$CI_DIR/body"
     awk 'tolower($1)=="x-ms-request-id:"{print $2}' | tr -d '\r')
 grep -q "id=$ID" "$CI_DIR/server.log" || fail "request id $ID is not in the server log"
 ok "x-ms-request-id $ID is in the server log"
+
+# A service principal created through Graph, last because it changes who
+# az is logged in as. create-for-rbac makes the application, a secret
+# and the service principal and assigns the role, which succeeds on the
+# first try: the directory is consulted, there is no replication to
+# wait for. The new principal then logs in and gets what Reader allows.
+az ad sp create-for-rbac -n ci-sp --role Reader --scopes "/subscriptions/$SUB" -o json > "$CI_DIR/sp.json"
+APPID=$(sed -n 's/.*"appId": *"\([^"]*\)".*/\1/p' "$CI_DIR/sp.json")
+PASSWORD=$(sed -n 's/.*"password": *"\([^"]*\)".*/\1/p' "$CI_DIR/sp.json")
+[ -n "$APPID" ] && [ -n "$PASSWORD" ] || fail "create-for-rbac printed no credentials: $(cat "$CI_DIR/sp.json")"
+ok "az ad sp create-for-rbac"
+az login --service-principal -u "$APPID" -p "$PASSWORD" \
+    --tenant 11111111-1111-1111-1111-111111111111 -o none
+[ "$(tsv group list --query "length(@)")" -ge 2 ] || fail "the new principal cannot read as Reader"
+refused "Reader cannot create a resource group" "AuthorizationFailed" \
+    az group create -n sp-rg -l eastus
+ok "the new principal logs in, reads, and is refused a write"
+
 echo PASS
