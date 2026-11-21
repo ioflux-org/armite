@@ -24,7 +24,7 @@ hero:
 
 features:
   - title: A real identity plane
-    details: An Entra ID token endpoint, OpenID discovery, JWKS and IMDS for managed identity. Tokens are minted and verified.
+    details: An Entra ID token endpoint, OpenID discovery, JWKS and IMDS for managed identity, and Microsoft Graph to create service principals at runtime. Tokens are minted and verified.
   - title: Real RBAC
     details: All 934 built-in roles with Azure's glob semantics, assignments at any scope and deny by default, on the management plane and the data plane.
   - title: Key Vault and Storage

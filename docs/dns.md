@@ -1,8 +1,8 @@
 # Hostnames
 
 Every client talks to Armite by hostname, the way it talks to Azure:
-`management.localhost` and `login.localhost` for ARM and Entra, one
-hostname per vault (`kv-demo.vault.localhost`) and per storage account
+`management.localhost`, `login.localhost` and `graph.localhost` for
+ARM, Entra and Microsoft Graph, one hostname per vault (`kv-demo.vault.localhost`) and per storage account
 (`stdemo.blob.core.localhost`, plus the `queue.` and `table.` twins
 Terraform probes). The certificate covers all of them with wildcards;
 whether they resolve to your machine is up to your resolver.
@@ -46,6 +46,7 @@ armite hosts | sudo tee -a /etc/hosts
 # armite hosts: append to /etc/hosts, or see docs/dns.md for a resolver fix
 127.0.0.1  management.localhost
 127.0.0.1  login.localhost
+127.0.0.1  graph.localhost
 127.0.0.1  kv-demo.vault.localhost
 127.0.0.1  stdemo.blob.core.localhost
 127.0.0.1  stdemo.queue.core.localhost

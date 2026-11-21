@@ -14,6 +14,7 @@ role assignments exist.
    ```text
    127.0.0.1  management.localhost
    127.0.0.1  login.localhost
+   127.0.0.1  graph.localhost
    127.0.0.1  kv-demo.vault.localhost
    127.0.0.1  stdemo.blob.core.localhost
    127.0.0.1  stdemo.queue.core.localhost

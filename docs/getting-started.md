@@ -21,7 +21,7 @@ on [Install](./install.md).
 The server generates a private CA in `~/.armite/` at first boot, keeps
 what you create in your data directory (`~/.local/share/armite` on
 Linux), and serves `https://management.localhost:8443` (ARM),
-`https://login.localhost:8443` (Entra), `https://{vault}.vault.localhost:8443`
+`https://login.localhost:8443` (Entra), `https://graph.localhost:8443` (Microsoft Graph), `https://{vault}.vault.localhost:8443`
 (Key Vault data plane) and `https://{account}.blob.core.localhost:8443`
 (blobs), plus IMDS on `http://127.0.0.1:8081`.
 Storage accounts need Azurite: with Node.js on the machine, `armite
