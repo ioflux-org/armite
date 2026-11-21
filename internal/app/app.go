@@ -147,12 +147,12 @@ func New(cfg config.Config, home string) (a *App, err error) {
 		return nil, err
 	}
 	checker := rbac.NewChecker(defs, assignments)
-	login := entra.New(cfg, signingKey)
+	login := entra.New(cfg, signingKey).WithDirectory(dir)
 
 	registry := gateway.NewRegistry()
 	registry.Register("Microsoft.Resources", resources.New(cfg, resourceStore, registry.Catalog))
 	registry.Register("Microsoft.KeyVault", vaults)
-	registry.Register("Microsoft.Authorization", authorization.New(cfg, defs, assignments, time.Now))
+	registry.Register("Microsoft.Authorization", authorization.New(cfg, defs, assignments, time.Now).WithDirectory(dir))
 	// Every plane is wrapped the same way: a request id on the response
 	// and one log line per request. A nil blob plane stays nil - that is
 	// how the router knows storage is off.

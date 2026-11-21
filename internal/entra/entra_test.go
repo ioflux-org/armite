@@ -11,8 +11,10 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ioflux-org/armite/internal/config"
+	"github.com/ioflux-org/armite/internal/directory"
 )
 
 var testKey = mustTestKey()
@@ -410,4 +412,79 @@ func imdsGet(t *testing.T, s *IMDS, query string, metadata bool) *httptest.Respo
 	rec := httptest.NewRecorder()
 	s.ServeHTTP(rec, req)
 	return rec
+}
+
+// A handler given a directory accepts what the directory accepts: a
+// service principal created at runtime logs in with the secret shown
+// once, and every way of not being able to has Entra's own error.
+func TestTokenThroughADirectory(t *testing.T) {
+	cfg := config.Default()
+	dir := directory.New(nil)
+	if err := dir.Seed(cfg); err != nil {
+		t.Fatal(err)
+	}
+	app, err := dir.Create(directory.Object{Kind: directory.KindApplication, DisplayName: "demo"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	secret, _, err := dir.AddPassword(app.ID, "test", time.Now().Add(-time.Minute), time.Now().Add(time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := New(cfg, testKey).WithDirectory(dir)
+	form := func(id, secret string) url.Values {
+		f := validForm(cfg)
+		f.Set("client_id", id)
+		f.Set("client_secret", secret)
+		return f
+	}
+	refused := func(what string, f url.Values, wantError, wantCode string) {
+		t.Helper()
+		rec := postToken(t, h, f)
+		var oe struct {
+			Error       string `json:"error"`
+			Description string `json:"error_description"`
+		}
+		if err := json.Unmarshal(rec.Body.Bytes(), &oe); err != nil {
+			t.Fatalf("%s: body is not JSON: %s", what, rec.Body.String())
+		}
+		if rec.Code != 401 || oe.Error != wantError || !strings.HasPrefix(oe.Description, wantCode+":") {
+			t.Errorf("%s: %d %s %q, want 401 %s %s", what, rec.Code, oe.Error, oe.Description, wantError, wantCode)
+		}
+	}
+
+	refused("an application without a service principal", form(app.AppID, secret), "unauthorized_client", "AADSTS7000229")
+
+	sp, err := dir.Create(directory.Object{Kind: directory.KindServicePrincipal, DisplayName: "demo",
+		AppID: app.AppID, AccountEnabled: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := postToken(t, h, form(app.AppID, secret))
+	if rec.Code != 200 {
+		t.Fatalf("created principal: %d %s", rec.Code, rec.Body.String())
+	}
+	var resp struct {
+		AccessToken string `json:"access_token"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	c, err := VerifyToken(&testKey.PublicKey, resp.AccessToken)
+	if err != nil || c.ObjectID != sp.ID || c.AppID != app.AppID {
+		t.Errorf("claims = oid %q appid %q (%v), want %q %q", c.ObjectID, c.AppID, err, sp.ID, app.AppID)
+	}
+	if rec := postToken(t, h, validForm(cfg)); rec.Code != 200 {
+		t.Errorf("the configured client must still log in with the file's secret: %d %s", rec.Code, rec.Body.String())
+	}
+
+	refused("a wrong secret", form(app.AppID, "nope"), "invalid_client", "AADSTS7000215")
+	refused("an unknown client", form("00000000-0000-0000-0000-000000000000", "x"), "unauthorized_client", "AADSTS700016")
+	refused("the managed identity, which has no application", form(cfg.ManagedIdentity.ClientID, "x"),
+		"unauthorized_client", "AADSTS700016")
+
+	if _, err := dir.Update(sp.ID, func(o *directory.Object) error { o.AccountEnabled = false; return nil }); err != nil {
+		t.Fatal(err)
+	}
+	refused("a disabled service principal", form(app.AppID, secret), "unauthorized_client", "AADSTS7000112")
 }
