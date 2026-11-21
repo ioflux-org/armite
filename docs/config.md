@@ -108,9 +108,30 @@ seed naming an unknown principal is refused at boot.
 
 ## Adding a principal
 
-The configuration file is the directory: every identity that can log in
-is declared in it, and a new one is an edit and a restart. There are
-two kinds.
+Two ways, as in Azure: create one at runtime through Microsoft Graph, or
+declare it in the configuration file so it is there at every boot.
+
+### At runtime, with az
+
+```bash
+az ad sp create-for-rbac -n my-app --role Reader \
+  --scopes /subscriptions/22222222-2222-2222-2222-222222222222
+```
+
+prints an `appId` and a `password`, once. The new service principal
+logs in at once (`az login --service-principal -u <appId>
+-p <password> --tenant <tenant_id>`, or `AZURE_CLIENT_ID`,
+`AZURE_CLIENT_SECRET` and `AZURE_TENANT_ID` for the SDKs) and gets
+exactly what its role allows. `az ad app`, `az ad sp` and their
+`credential reset` work as they do against Entra, and
+`az role assignment create --assignee <appId>` finds it by that id. It
+lives in the state: a restart keeps it, `armite reset` removes it.
+Secrets are stored as hashes and never shown again.
+
+### In the configuration file
+
+A principal declared here exists at every boot, whatever happens to the
+state: the way back in. There are two kinds.
 
 A **service principal** is an entry in `clients` — the `id` it logs in
 with (the client id), its `secret`, and the `object_id` RBAC knows it
@@ -147,12 +168,13 @@ The **managed identity** is the one principal without a secret:
 (`AZURE_POD_IDENTITY_AUTHORITY_HOST=http://127.0.0.1:8081`) gets its
 tokens, as a VM or a pod would in Azure. There is exactly one.
 
-Not in the directory: users and groups, and the Graph API that creates
-principals at runtime — `az ad sp create-for-rbac` fails with _The
-api-version query parameter (?api-version=) is required for all
-requests_ (az sends the Graph call to the ARM host, which does not
-serve it), and `az role assignment create` needs `--assignee-object-id`
-rather than a name to look up.
+Through Graph these identities can be changed (a second password, a
+new display name) but not deleted. Once changed, the state holds them,
+and a secret edited in the file no longer applies until `armite reset`.
+
+Not in the directory yet: users and groups — `az ad user create`
+answers _not supported yet_ — so `az login` is still
+`--service-principal` or `--identity`.
 
 ## Logs and request ids
 

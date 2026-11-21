@@ -1,7 +1,7 @@
 # Client setup
 
 Armite serves `https://management.localhost:8443` (ARM),
-`https://login.localhost:8443` (Entra), `https://{vault}.vault.localhost:8443`
+`https://login.localhost:8443` (Entra), `https://graph.localhost:8443` (Microsoft Graph), `https://{vault}.vault.localhost:8443`
 (Key Vault data plane), `https://{account}.blob.core.localhost:8443` (blob
 data plane) and `http://127.0.0.1:8081` (IMDS). Every client needs three
 things: the hostnames resolving to 127.0.0.1, the CA in `~/.armite/ca.pem`,

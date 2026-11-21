@@ -43,8 +43,8 @@ limitation_ (unverified against a live subscription), _invention_
   groups, roles or `xms_*` claims. _simplification_
 - IMDS tokens are v2-shaped (real IMDS issues v1); the envelope keeps
   IMDS's string-typed `expires_in`. _simplification_
-- No app registrations or consent: any configured client with the
-  matching secret gets a token for any audience it asks for.
+- No consent or application permissions: any service principal with a
+  valid secret gets a token for any audience it asks for.
   _simplification_
 - No revocation or continuous access evaluation. _deferred_
 - ARM accepts two audiences: `https://management.azure.com` (az, SDKs)
@@ -55,10 +55,30 @@ limitation_ (unverified against a live subscription), _invention_
 
 ## Directory (Microsoft Graph)
 
+- **Applications and service principals only, for now.** Created,
+  changed and deleted through Graph (`az ad app`, `az ad sp`,
+  `create-for-rbac`, credential reset); users and groups are not served
+  yet (`501 NotImplemented`), so there is no interactive login.
+  _deferred_
 - **No Graph permissions model.** Any principal with a token for the
   Graph audience may read and change the directory; Azure requires
   application permissions (Application.ReadWrite.All and friends).
   _simplification_
+- **The configuration's identities cannot be deleted through Graph**
+  (403 `Authorization_RequestDenied`): they are the way back in.
+  Changing one moves it into the state, where it stays until `armite
+  reset`. _invention_
+- **A new principal is known everywhere at once.** There is no
+  replication delay: the role assignment az retries for in Azure
+  succeeds on the first request. _environment_
+- **Client secrets** are 64 hexadecimal characters (Entra's look
+  different), stored as PBKDF2 hashes and shown once; password
+  credentials only, no certificates or federated credentials.
+  _simplification_
+- **Token errors** for a disabled service principal (`AADSTS7000112`)
+  and for an application without one (`AADSTS7000229`) are recalled,
+  not captured; an expired secret is reported as an invalid one
+  (`AADSTS7000215`). _accepted limitation_
 - **One tenant, no guests, no app roles, no OAuth2 permission grants.**
   _deferred_
 - **OData subset:** `$filter` with `eq`, `and`, `startswith()`,
@@ -69,21 +89,20 @@ limitation_ (unverified against a live subscription), _invention_
 
 - Built-in roles are a snapshot of the real 934 definitions (captured
   2026-08-30); definition IDs are tenant-level. _simplification_
-- A principal is one object ID: no group expansion, no distinction
-  between user, service principal and managed identity. _simplification_
+- A principal is one object ID: no group expansion; the directory
+  supplies `principalType`, and evaluation ignores it. _simplification_
 - Not evaluated: ABAC conditions, deny assignments, PIM eligible
   assignments, classic administrators. _deferred_
 - Custom role definitions cannot be created; the built-in set is
   returned at every scope. _deferred_
-- Assignment principals must be one of the configured identities;
-  anything else is `PrincipalNotFound`. Assignment names are not
-  validated as GUIDs. _simplification_
+- Assignment principals must exist in the directory, configured or
+  created through Graph; anything else is `PrincipalNotFound`, and a
+  stated `principalType` that disagrees with the directory is
+  `UnmatchedPrincipalType`. Assignment names are not validated as GUIDs.
+  _simplification_
 - `$filter` support is the subset az uses: `roleName eq`, `type eq`,
   `atScopeAndBelow()`, `atScope()`, `principalId eq`, `assignedTo()`,
   combinable with `and`. _simplification_
-- No Microsoft Graph: `az ad …` fails, and `az role assignment list -o
-table` fails because the table wants principal names; use `-o json`
-  or `--query`. _deferred_
 
 ## ARM
 
