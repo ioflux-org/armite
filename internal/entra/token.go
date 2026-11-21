@@ -1,7 +1,6 @@
 package entra
 
 import (
-	"crypto/subtle"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -9,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ioflux-org/armite/internal/config"
+	"github.com/ioflux-org/armite/internal/directory"
 )
 
 const tokenLifetime = time.Hour
@@ -39,18 +39,29 @@ func (h *Handler) serveToken(w http.ResponseWriter, r *http.Request) {
 		writeOAuthError(w, http.StatusBadRequest, "invalid_request", "AADSTS900144: The request body must contain the following parameter: 'scope'.")
 		return
 	}
+	// The directory decides, in Entra's order: is there an application
+	// with this id, does it have a service principal in the tenant, is
+	// that enabled, and is the secret one of its current passwords.
 	clientID := r.PostFormValue("client_id")
-	client, ok := h.cfg.FindClient(clientID)
-	if !ok {
+	if _, ok := h.dir.ByAppID(directory.KindApplication, clientID); !ok {
 		writeOAuthError(w, http.StatusUnauthorized, "unauthorized_client", "AADSTS700016: Application with identifier '"+clientID+"' was not found in the directory.")
 		return
 	}
-	if subtle.ConstantTimeCompare([]byte(client.Secret), []byte(r.PostFormValue("client_secret"))) != 1 {
+	sp, ok := h.dir.ByAppID(directory.KindServicePrincipal, clientID)
+	if !ok {
+		writeOAuthError(w, http.StatusUnauthorized, "unauthorized_client", "AADSTS7000229: The client application "+clientID+" is missing service principal in the tenant "+h.cfg.TenantID+".")
+		return
+	}
+	if !sp.AccountEnabled {
+		writeOAuthError(w, http.StatusUnauthorized, "unauthorized_client", "AADSTS7000112: Application '"+clientID+"' is disabled.")
+		return
+	}
+	if _, ok := h.dir.Authenticate(clientID, r.PostFormValue("client_secret")); !ok {
 		writeOAuthError(w, http.StatusUnauthorized, "invalid_client", "AADSTS7000215: Invalid client secret provided.")
 		return
 	}
 
-	c := newAppClaims(h.cfg, aud, client.ObjectID, client.ID, time.Now())
+	c := newAppClaims(h.cfg, aud, sp.ID, sp.AppID, time.Now())
 
 	token, err := signJWT(h.signingKey, c)
 	if err != nil {

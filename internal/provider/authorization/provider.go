@@ -16,9 +16,18 @@ import (
 
 	"github.com/ioflux-org/armite/internal/azerr"
 	"github.com/ioflux-org/armite/internal/config"
+	"github.com/ioflux-org/armite/internal/directory"
 	"github.com/ioflux-org/armite/internal/gateway"
 	"github.com/ioflux-org/armite/internal/rbac"
 )
+
+// Principals is what the provider needs from a directory: whether an
+// object id is a user, a group or a service principal there, and which.
+// *directory.Store is one; a Provider built without a directory answers
+// from the configuration's identities.
+type Principals interface {
+	PrincipalByID(id string) (directory.Object, bool)
+}
 
 // Provider serves the Microsoft.Authorization namespace.
 type Provider struct {
@@ -26,6 +35,7 @@ type Provider struct {
 	defs  map[string]rbac.RoleDefinition
 	keys  []string // definition GUIDs, sorted: listings are deterministic
 	store *rbac.AssignmentStore
+	dir   Principals
 	now   func() time.Time
 }
 
@@ -40,8 +50,17 @@ func New(
 		defs:  defs,
 		keys:  slices.Sorted(maps.Keys(defs)),
 		store: store,
+		dir:   configPrincipals{cfg},
 		now:   now,
 	}
+}
+
+// WithDirectory makes role assignments consult dir for their principal,
+// so one created through Graph a moment ago can be granted a role at
+// once. It returns p, for use where the provider is built.
+func (p *Provider) WithDirectory(dir Principals) *Provider {
+	p.dir = dir
+	return p
 }
 
 // ResourceTypes lists what this provider serves, for the catalogue.
@@ -100,15 +119,32 @@ func sameScope(a, b string) bool {
 	return strings.EqualFold(strings.TrimRight(a, "/"), strings.TrimRight(b, "/"))
 }
 
-// knownPrincipal reports whether id belongs to a configured principal.
-// The emulator's directory is its config; real ARM asks Entra.
-func (p *Provider) knownPrincipal(id string) bool {
-	for _, c := range p.cfg.Clients {
-		if strings.EqualFold(c.ObjectID, id) {
-			return true
+// configPrincipals answers from the configuration alone: its clients
+// and its managed identity, all service principals.
+type configPrincipals struct{ cfg config.Config }
+
+func (c configPrincipals) PrincipalByID(id string) (directory.Object, bool) {
+	for _, cl := range c.cfg.Clients {
+		if strings.EqualFold(cl.ObjectID, id) {
+			return directory.Object{ID: cl.ObjectID, Kind: directory.KindServicePrincipal, AppID: cl.ID}, true
 		}
 	}
-	return strings.EqualFold(p.cfg.ManagedIdentity.ObjectID, id)
+	if mi := c.cfg.ManagedIdentity; strings.EqualFold(mi.ObjectID, id) {
+		return directory.Object{ID: mi.ObjectID, Kind: directory.KindServicePrincipal, AppID: mi.ClientID}, true
+	}
+	return directory.Object{}, false
+}
+
+// principalTypeOf is the name RBAC gives a directory object's kind.
+func principalTypeOf(o directory.Object) string {
+	switch o.Kind {
+	case directory.KindUser:
+		return "User"
+	case directory.KindGroup:
+		return "Group"
+	default:
+		return "ServicePrincipal"
+	}
 }
 
 // internalError is the provider's own failure: logged with detail, told

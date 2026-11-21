@@ -33,6 +33,7 @@ const (
 	CodeRoleAssignmentExists               = "RoleAssignmentExists"
 	CodeRoleAssignmentUpdateNotPermitted   = "RoleAssignmentUpdateNotPermitted"
 	CodePrincipalNotFound                  = "PrincipalNotFound"
+	CodeUnmatchedPrincipalType             = "UnmatchedPrincipalType"
 	CodeVaultAlreadyExists                 = "VaultAlreadyExists"
 	CodeVaultNameNotValid                  = "VaultNameNotValid"
 )

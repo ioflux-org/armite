@@ -118,14 +118,21 @@ func (p *Provider) putAssignment(w http.ResponseWriter, r *http.Request, scope, 
 			"The specified role definition with ID '"+props.RoleDefinitionID+"' does not exist.")
 		return
 	}
-	if !p.knownPrincipal(props.PrincipalID) {
+	// The directory says whether the principal exists and what it is.
+	// A stated principalType must agree with it, as ARM insists; an
+	// omitted one is filled in.
+	principal, ok := p.dir.PrincipalByID(props.PrincipalID)
+	if !ok {
 		azerr.WriteError(w, http.StatusBadRequest, azerr.CodePrincipalNotFound,
 			"Principal "+props.PrincipalID+" does not exist in the directory "+p.cfg.TenantID+".")
 		return
 	}
-	principalType := props.PrincipalType
-	if principalType == "" {
-		principalType = "ServicePrincipal"
+	principalType := principalTypeOf(principal)
+	if props.PrincipalType != "" && !strings.EqualFold(props.PrincipalType, principalType) {
+		azerr.WriteError(w, http.StatusBadRequest, azerr.CodeUnmatchedPrincipalType,
+			"The PrincipalId '"+props.PrincipalID+"' has type '"+principalType+
+				"' , which is different from specified PrincipalType '"+props.PrincipalType+"'.")
+		return
 	}
 
 	a := rbac.RoleAssignment{

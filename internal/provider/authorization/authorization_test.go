@@ -12,6 +12,7 @@ import (
 
 	"github.com/ioflux-org/armite/internal/azerr"
 	"github.com/ioflux-org/armite/internal/config"
+	"github.com/ioflux-org/armite/internal/directory"
 	"github.com/ioflux-org/armite/internal/gateway"
 	"github.com/ioflux-org/armite/internal/rbac"
 )
@@ -363,5 +364,61 @@ func TestUnknownTypeAndUnrouted(t *testing.T) {
 	p.ServeHTTP(rec, req)
 	if rec.Code != http.StatusInternalServerError {
 		t.Errorf("unrouted: status = %d, want 500", rec.Code)
+	}
+}
+
+// With a directory, a principal created a moment ago can be granted a
+// role at once, its kind decides principalType, and an application's
+// own object id is not a principal: what az ad sp create-for-rbac
+// --role relies on.
+func TestAssignmentsConsultTheDirectory(t *testing.T) {
+	dir := directory.New(nil)
+	if err := dir.Seed(config.Default()); err != nil {
+		t.Fatal(err)
+	}
+	app, err := dir.Create(directory.Object{Kind: directory.KindApplication, DisplayName: "demo"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sp, err := dir.Create(directory.Object{Kind: directory.KindServicePrincipal, DisplayName: "demo",
+		AppID: app.AppID, AccountEnabled: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	user, err := dir.Create(directory.Object{Kind: directory.KindUser, DisplayName: "u",
+		UserPrincipalName: "u@armite.local", AccountEnabled: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := newProvider(t).WithDirectory(dir)
+	body := func(principal, principalType string) string {
+		b := `{"properties":{"roleDefinitionId":"` + sub + defsPath + config.ReaderRoleID +
+			`","principalId":"` + principal + `"`
+		if principalType != "" {
+			b += `,"principalType":"` + principalType + `"`
+		}
+		return b + `}}`
+	}
+	const nameC = "33333333-cccc-4ccc-8ccc-333333333333"
+
+	rec := serve(t, p, http.MethodPut, sub+asgPath+nameA, "", body(sp.ID, ""))
+	if rec.Code != http.StatusCreated || decodeAssignment(t, rec).Properties.PrincipalType != "ServicePrincipal" {
+		t.Errorf("a created service principal, type omitted: %d %s", rec.Code, rec.Body.String())
+	}
+	rec = serve(t, p, http.MethodPut, sub+asgPath+nameB, "", body(user.ID, ""))
+	if rec.Code != http.StatusCreated || decodeAssignment(t, rec).Properties.PrincipalType != "User" {
+		t.Errorf("a user, type omitted: %d %s", rec.Code, rec.Body.String())
+	}
+	rec = serve(t, p, http.MethodPut, sub+asgPath+nameC, "", body(app.ID, ""))
+	if rec.Code != http.StatusBadRequest || code(rec) != azerr.CodePrincipalNotFound {
+		t.Errorf("an application's object id is not a principal: %d %s", rec.Code, code(rec))
+	}
+	rec = serve(t, p, http.MethodPut, rg+asgPath+nameC, "", body(sp.ID, "User"))
+	if rec.Code != http.StatusBadRequest || code(rec) != azerr.CodeUnmatchedPrincipalType {
+		t.Errorf("a stated type that disagrees with the directory: %d %s", rec.Code, code(rec))
+	}
+	rec = serve(t, p, http.MethodPut, rg+asgPath+nameC, "", body(sp.ID, "serviceprincipal"))
+	if rec.Code != http.StatusCreated {
+		t.Errorf("the stated type compares case-insensitively: %d %s", rec.Code, rec.Body.String())
 	}
 }
