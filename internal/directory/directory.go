@@ -42,6 +42,8 @@ var (
 	ErrNotFound = errors.New("directory: object not found")
 	ErrConflict = errors.New("directory: an object with that key already exists")
 	ErrSeeded   = errors.New("directory: the object comes from the configuration")
+	// ErrSelfMember refuses the one nesting that is always a mistake.
+	ErrSelfMember = errors.New("directory: a group cannot be a member of itself")
 )
 
 // Object is one directory object as the store holds it: the fields
@@ -62,7 +64,9 @@ type Object struct {
 	// user
 	UserPrincipalName string `json:"userPrincipalName,omitempty"`
 	MailNickname      string `json:"mailNickname,omitempty"`
+	PasswordHash      string `json:"passwordHash,omitempty"`
 	// group
+	Description     string   `json:"description,omitempty"`
 	MailEnabled     bool     `json:"mailEnabled"`
 	SecurityEnabled bool     `json:"securityEnabled"`
 	Members         []string `json:"members,omitempty"` // object ids
@@ -189,6 +193,10 @@ func (s *Store) Create(o Object) (Object, error) {
 	o.Created = time.Now().UTC().Truncate(time.Second)
 	o.Members, o.Passwords, o.Seeded = nil, nil, false
 
+	if o.Kind != KindUser {
+		o.PasswordHash = ""
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	switch o.Kind {
@@ -296,7 +304,8 @@ func (s *Store) Update(id string, fn func(*Object) error) (Object, error) {
 }
 
 // Delete removes the object with id. A seed cannot be deleted; an
-// application takes its service principals with it, as Entra does.
+// application takes its service principals with it, as Entra does, and
+// whatever is deleted leaves the groups it was in.
 func (s *Store) Delete(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -321,7 +330,7 @@ func (s *Store) Delete(id string) error {
 			return err
 		}
 	}
-	return nil
+	return s.dropMembersLocked(victims)
 }
 
 // AddPassword adds a client secret to an application or service
@@ -366,6 +375,36 @@ func (s *Store) RemovePassword(id, keyID string) error {
 		if len(o.Passwords) == n {
 			return ErrNotFound
 		}
+		return nil
+	})
+	return err
+}
+
+// CreateUser stores a new user. The password is kept only as a hash:
+// nothing reads it back, and it is there for the day users can sign in.
+func (s *Store) CreateUser(o Object, password string) (Object, error) {
+	if password == "" {
+		return Object{}, errors.New("directory: a user needs a password")
+	}
+	hash, err := hashSecret(password)
+	if err != nil {
+		return Object{}, err
+	}
+	o.Kind, o.PasswordHash = KindUser, hash
+	return s.Create(o)
+}
+
+// SetUserPassword replaces a user's password.
+func (s *Store) SetUserPassword(id, password string) error {
+	hash, err := hashSecret(password)
+	if err != nil {
+		return err
+	}
+	_, err = s.Update(id, func(o *Object) error {
+		if o.Kind != KindUser {
+			return fmt.Errorf("directory: %s objects have no password profile", o.Kind)
+		}
+		o.PasswordHash = hash
 		return nil
 	})
 	return err

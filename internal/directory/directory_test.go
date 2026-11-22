@@ -184,3 +184,198 @@ func TestSecretsAreSafeToPaste(t *testing.T) {
 		seen[s] = true
 	}
 }
+
+// mk creates an object or fails the test.
+func mk(t *testing.T, s *Store, o Object) Object {
+	t.Helper()
+	if o.Kind == KindUser {
+		created, err := s.CreateUser(o, "P@ssw0rd!")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return created
+	}
+	created, err := s.Create(o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return created
+}
+
+func ids(objs []Object) []string {
+	out := make([]string, len(objs))
+	for i, o := range objs {
+		out[i] = o.ID
+	}
+	return out
+}
+
+// sameSet compares without order: groups created in the same second
+// sort by their random ids.
+func sameSet(got []string, want ...string) bool {
+	got, want = slices.Clone(got), slices.Clone(want)
+	slices.Sort(got)
+	slices.Sort(want)
+	return slices.Equal(got, want)
+}
+
+func TestGroupsNestAndACycleEndsTheWalk(t *testing.T) {
+	_, s := open(t, t.TempDir())
+	user := mk(t, s, Object{Kind: KindUser, DisplayName: "u", UserPrincipalName: "u@armite.local"})
+	app := mk(t, s, Object{Kind: KindApplication, DisplayName: "app"})
+	sp := mk(t, s, Object{Kind: KindServicePrincipal, DisplayName: "app", AppID: app.AppID, AccountEnabled: true})
+	a := mk(t, s, Object{Kind: KindGroup, DisplayName: "a"})
+	b := mk(t, s, Object{Kind: KindGroup, DisplayName: "b"})
+	c := mk(t, s, Object{Kind: KindGroup, DisplayName: "c"})
+	// a holds the user and b; b holds the service principal and c; c holds a: a cycle.
+	for _, pair := range [][2]string{{a.ID, user.ID}, {a.ID, b.ID}, {b.ID, sp.ID}, {b.ID, c.ID}, {c.ID, a.ID}} {
+		if err := s.AddMember(pair[0], pair[1]); err != nil {
+			t.Fatalf("AddMember(%s, %s): %v", pair[0], pair[1], err)
+		}
+	}
+
+	direct, ok := s.Members(a.ID, false)
+	if !ok || !slices.Equal(ids(direct), []string{user.ID, b.ID}) {
+		t.Errorf("direct members of a = %v, want the user then b, in the order added", ids(direct))
+	}
+	all, _ := s.Members(a.ID, true)
+	if !slices.Equal(ids(all), []string{user.ID, b.ID, sp.ID, c.ID}) {
+		t.Errorf("transitive members of a = %v, want user, b, sp, c - and not a itself", ids(all))
+	}
+	if _, ok := s.Members(user.ID, false); ok {
+		t.Error("Members of a user must report that it is not a group")
+	}
+
+	if got := ids(s.GroupsOf(sp.ID, false)); !sameSet(got, b.ID) {
+		t.Errorf("direct groups of the service principal = %v, want b", got)
+	}
+	if got := s.TransitiveGroupIDs(sp.ID); !sameSet(got, a.ID, b.ID, c.ID) {
+		t.Errorf("transitive groups of the service principal = %v, want a, b and c", got)
+	}
+	if got := s.TransitiveGroupIDs(a.ID); !sameSet(got, b.ID, c.ID) {
+		t.Errorf("transitive groups of a = %v, want b and c - a group is not in itself, even around a cycle", got)
+	}
+	if got := s.TransitiveGroupIDs(app.ID); len(got) != 0 {
+		t.Errorf("an application is in no group, got %v", got)
+	}
+}
+
+func TestMembershipRules(t *testing.T) {
+	_, s := open(t, t.TempDir())
+	user := mk(t, s, Object{Kind: KindUser, DisplayName: "u", UserPrincipalName: "u@armite.local"})
+	app := mk(t, s, Object{Kind: KindApplication, DisplayName: "app"})
+	g := mk(t, s, Object{Kind: KindGroup, DisplayName: "g"})
+	if err := s.AddMember(g.ID, strings.ToUpper(user.ID)); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		what          string
+		group, member string
+		want          error
+	}{
+		{"a member twice", g.ID, user.ID, ErrConflict},
+		{"the group itself", g.ID, g.ID, ErrSelfMember},
+		{"an unknown member", g.ID, "00000000-0000-0000-0000-000000000000", ErrNotFound},
+		{"an application", g.ID, app.ID, ErrNotFound},
+		{"a user as the group", user.ID, g.ID, ErrNotFound},
+	} {
+		if err := s.AddMember(tc.group, tc.member); !errors.Is(err, tc.want) {
+			t.Errorf("AddMember, %s: %v, want %v", tc.what, err, tc.want)
+		}
+	}
+	if err := s.RemoveMember(g.ID, app.ID); !errors.Is(err, ErrNotFound) {
+		t.Errorf("RemoveMember of a non-member: %v, want ErrNotFound", err)
+	}
+	if err := s.RemoveMember(g.ID, user.ID); err != nil {
+		t.Fatal(err)
+	}
+	if m, _ := s.Members(g.ID, false); len(m) != 0 {
+		t.Errorf("after RemoveMember: %v", ids(m))
+	}
+}
+
+func TestDeletedObjectsLeaveTheirGroupsAcrossARestart(t *testing.T) {
+	dir := t.TempDir()
+	cfg := config.Default()
+	log, s := openWith(t, dir, cfg)
+	user := mk(t, s, Object{Kind: KindUser, DisplayName: "u", UserPrincipalName: "u@armite.local"})
+	app := mk(t, s, Object{Kind: KindApplication, DisplayName: "app"})
+	sp := mk(t, s, Object{Kind: KindServicePrincipal, DisplayName: "app", AppID: app.AppID, AccountEnabled: true})
+	inner := mk(t, s, Object{Kind: KindGroup, DisplayName: "inner"})
+	outer := mk(t, s, Object{Kind: KindGroup, DisplayName: "outer"})
+	seed := cfg.Clients[0].ObjectID
+	for _, m := range []string{user.ID, sp.ID, inner.ID, seed} {
+		if err := s.AddMember(outer.ID, m); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// A user, an application (taking its service principal) and a group go.
+	for _, id := range []string{user.ID, app.ID, inner.ID} {
+		if err := s.Delete(id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if m, _ := s.Members(outer.ID, false); !slices.Equal(ids(m), []string{seed}) {
+		t.Fatalf("members after the deletes = %v, want only the configured principal", ids(m))
+	}
+	if err := log.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	_, s = openWith(t, dir, cfg)
+	if m, _ := s.Members(outer.ID, false); !slices.Equal(ids(m), []string{seed}) {
+		t.Errorf("members after a restart = %v, want only the configured principal", ids(m))
+	}
+	if got := s.TransitiveGroupIDs(seed); !sameSet(got, outer.ID) {
+		t.Errorf("groups of the configured principal after a restart = %v", got)
+	}
+}
+
+func TestAMemberRemovedFromTheConfigurationIsSkipped(t *testing.T) {
+	dir := t.TempDir()
+	cfg := config.Default()
+	log, s := openWith(t, dir, cfg)
+	g := mk(t, s, Object{Kind: KindGroup, DisplayName: "g"})
+	if err := s.AddMember(g.ID, cfg.Clients[0].ObjectID); err != nil {
+		t.Fatal(err)
+	}
+	if err := log.Close(); err != nil {
+		t.Fatal(err)
+	}
+	cfg.Clients = nil // the client is gone from armite.yaml
+	_, s = openWith(t, dir, cfg)
+	if m, ok := s.Members(g.ID, true); !ok || len(m) != 0 {
+		t.Errorf("members = %v, want none: the id no longer names anything", ids(m))
+	}
+}
+
+func TestUserPasswordsAreKeptAsHashes(t *testing.T) {
+	_, s := open(t, t.TempDir())
+	u, err := s.CreateUser(Object{DisplayName: "Ada", UserPrincipalName: "ada@armite.local"}, "P@ssw0rd!")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if u.Kind != KindUser || strings.Contains(u.PasswordHash, "P@ssw0rd!") || !verifySecret(u.PasswordHash, "P@ssw0rd!") {
+		t.Errorf("created user = %+v, want a user with a verifiable hash", u)
+	}
+	if _, err := s.CreateUser(Object{DisplayName: "Ada again", UserPrincipalName: "ADA@armite.local"}, "x"); !errors.Is(err, ErrConflict) {
+		t.Errorf("a second user with the same userPrincipalName: %v, want ErrConflict", err)
+	}
+	if _, err := s.CreateUser(Object{DisplayName: "Bob", UserPrincipalName: "bob@armite.local"}, ""); err == nil {
+		t.Error("a user without a password was accepted")
+	}
+	if err := s.SetUserPassword(u.ID, "N3w-secret"); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := s.Get(u.ID)
+	if verifySecret(got.PasswordHash, "P@ssw0rd!") || !verifySecret(got.PasswordHash, "N3w-secret") {
+		t.Error("SetUserPassword did not replace the password")
+	}
+	g := mk(t, s, Object{Kind: KindGroup, DisplayName: "g", PasswordHash: "leftover"})
+	if g.PasswordHash != "" {
+		t.Error("only users keep a password hash")
+	}
+	if err := s.SetUserPassword(g.ID, "x"); err == nil {
+		t.Error("a group was given a password")
+	}
+}
