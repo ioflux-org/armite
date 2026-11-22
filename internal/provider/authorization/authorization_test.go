@@ -422,3 +422,56 @@ func TestAssignmentsConsultTheDirectory(t *testing.T) {
 		t.Errorf("the stated type compares case-insensitively: %d %s", rec.Code, rec.Body.String())
 	}
 }
+
+// assignedTo('id') also lists what the principal has through its
+// groups, at any depth; principalId eq 'id' lists only its own.
+func TestAssignedToCountsGroups(t *testing.T) {
+	dir := directory.New(nil)
+	if err := dir.Seed(config.Default()); err != nil {
+		t.Fatal(err)
+	}
+	group := func(name string) directory.Object {
+		t.Helper()
+		g, err := dir.Create(directory.Object{Kind: directory.KindGroup, DisplayName: name, SecurityEnabled: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return g
+	}
+	inner, outer := group("inner"), group("outer")
+	// The managed identity is in inner, inner is in outer.
+	for _, add := range [][2]string{{inner.ID, mi}, {outer.ID, inner.ID}} {
+		if err := dir.AddMember(add[0], add[1]); err != nil {
+			t.Fatal(err)
+		}
+	}
+	p := newProvider(t).WithDirectory(dir)
+	to := func(principal string) string {
+		return `{"properties":{"roleDefinitionId":"` + sub + defsPath + config.ReaderRoleID + `","principalId":"` + principal + `"}}`
+	}
+	rec := serve(t, p, http.MethodPut, rg+asgPath+nameA, "", to(outer.ID))
+	if rec.Code != http.StatusCreated || decodeAssignment(t, rec).Properties.PrincipalType != "Group" {
+		t.Fatalf("assign to a group: %d %s", rec.Code, rec.Body.String())
+	}
+
+	list := sub + "/providers/Microsoft.Authorization/roleAssignments"
+	own := decodeList(t, serve(t, p, http.MethodGet, list, "principalId eq '"+mi+"'", ""))
+	if len(own) != 1 || own[0].Properties.PrincipalID != mi {
+		t.Errorf("principalId eq: %d assignments, want the identity's own one", len(own))
+	}
+	all := decodeList(t, serve(t, p, http.MethodGet, list, "assignedTo('"+mi+"')", ""))
+	if len(all) != 2 {
+		t.Fatalf("assignedTo: %d assignments, want its own and the one through outer", len(all))
+	}
+	through := all[0]
+	if through.Properties.PrincipalID == mi {
+		through = all[1]
+	}
+	if !strings.EqualFold(through.Properties.PrincipalID, outer.ID) || through.Properties.PrincipalType != "Group" {
+		t.Errorf("the inherited assignment = %+v, want the one to outer", through.Properties)
+	}
+	// The built-in client is in no group: assignedTo is its own assignment only.
+	if got := decodeList(t, serve(t, p, http.MethodGet, list, "assignedTo('"+client+"')", "")); len(got) != 1 {
+		t.Errorf("assignedTo for a principal without groups: %d assignments, want 1", len(got))
+	}
+}

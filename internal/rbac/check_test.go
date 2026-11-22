@@ -112,3 +112,42 @@ func TestCheck(t *testing.T) {
 		}
 	}
 }
+
+// A principal with no assignment of its own gets what its groups were
+// given, on both planes, and loses it the moment it leaves the group:
+// the checker asks for the groups on every check.
+func TestCheckCountsThePrincipalsGroups(t *testing.T) {
+	const (
+		member   = "77777777-7777-7777-7777-777777777777"
+		readers  = "aaaaaaaa-0000-4000-8000-000000000001"
+		secreted = "aaaaaaaa-0000-4000-8000-000000000002"
+	)
+	groupsOf := map[string][]string{member: {strings.ToUpper(readers), secreted}}
+	c := newTestChecker(t,
+		RoleAssignment{PrincipalID: readers, PrincipalType: "Group", RoleDefinitionID: readerID, Scope: subScope},
+		RoleAssignment{PrincipalID: secreted, PrincipalType: "Group", RoleDefinitionID: kvSecretsUserID, Scope: vaultScope},
+	).WithGroups(func(principal string) []string { return groupsOf[principal] })
+
+	check := func(principal, action, scope string, data, want bool) {
+		t.Helper()
+		got, err := c.Check(principal, action, scope, data)
+		if err != nil || got != want {
+			t.Errorf("Check(%s, %s, data=%v) = %v, %v; want %v", principal, action, data, got, err, want)
+		}
+	}
+	check(member, actVaultRead, vaultScope, false, true)   // Reader through the group, inherited from the subscription
+	check(member, actVaultWrite, vaultScope, false, false) // Reader does not write
+	check(member, actGetSecret, vaultScope, true, true)    // a data role through a second group
+	check(member, actGetSecret, rgScope, true, false)      // that group's grant is at the vault only
+	check(unknownPrincipal, actVaultRead, vaultScope, false, false)
+
+	delete(groupsOf, member) // it leaves both groups
+	check(member, actVaultRead, vaultScope, false, false)
+	check(member, actGetSecret, vaultScope, true, false)
+
+	// Without a group source, an assignment to a group is to the group alone.
+	plain := newTestChecker(t, RoleAssignment{PrincipalID: readers, RoleDefinitionID: readerID, Scope: subScope})
+	if ok, _ := plain.Check(member, actVaultRead, vaultScope, false); ok {
+		t.Error("a checker without groups granted a group's role to someone")
+	}
+}

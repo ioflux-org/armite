@@ -146,7 +146,7 @@ func New(cfg config.Config, home string) (a *App, err error) {
 	if err := rbac.Seed(assignments, defs, gateway.SeedAssignments(cfg)); err != nil {
 		return nil, err
 	}
-	checker := rbac.NewChecker(defs, assignments)
+	checker := rbac.NewChecker(defs, assignments).WithGroups(dir.TransitiveGroupIDs)
 	login := entra.New(cfg, signingKey).WithDirectory(dir)
 
 	registry := gateway.NewRegistry()

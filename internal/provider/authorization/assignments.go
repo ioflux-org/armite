@@ -209,8 +209,8 @@ func (p *Provider) assignmentLookupError(w http.ResponseWriter, name string, err
 }
 
 // assignmentFilterRe accepts the terms az combines with "and":
-// atScope(), principalId eq '…' and assignedTo('…') (which would also
-// expand groups; Armite has none, so it is principalId eq).
+// atScope(), principalId eq '…' (assignments to that principal itself)
+// and assignedTo('…') (also those to the groups it is in).
 var (
 	andRe          = regexp.MustCompile(`(?i)\s+and\s+`)
 	principalEqRe  = regexp.MustCompile(`(?i)^principalId\s+eq\s+'([^']*)'$`)
@@ -218,48 +218,64 @@ var (
 	atScopeLiteral = "atscope()"
 )
 
-// parseAssignmentFilter returns whether descendants are excluded and
-// which principal to keep ("" for all). ok is false for a filter
-// Armite does not understand.
-func parseAssignmentFilter(filter string) (atScope bool, principal string, ok bool) {
+// assignmentFilter is a parsed $filter: whether descendants of the scope
+// are excluded, which principal to keep ("" for all), and whether the
+// principal's groups count as the principal.
+type assignmentFilter struct {
+	atScope    bool
+	principal  string
+	withGroups bool
+}
+
+// parseAssignmentFilter reads the filter; ok is false for one Armite
+// does not understand.
+func parseAssignmentFilter(filter string) (f assignmentFilter, ok bool) {
 	filter = strings.TrimSpace(filter)
 	if filter == "" {
-		return false, "", true
+		return f, true
 	}
 	for _, term := range andRe.Split(filter, -1) {
 		switch {
 		case strings.ToLower(term) == atScopeLiteral:
-			atScope = true
+			f.atScope = true
 		case principalEqRe.MatchString(term):
-			principal = principalEqRe.FindStringSubmatch(term)[1]
+			f.principal = principalEqRe.FindStringSubmatch(term)[1]
 		case assignedToRe.MatchString(term):
-			principal = assignedToRe.FindStringSubmatch(term)[1]
+			f.principal, f.withGroups = assignedToRe.FindStringSubmatch(term)[1], true
 		default:
-			return false, "", false
+			return assignmentFilter{}, false
 		}
 	}
-	return atScope, principal, true
+	return f, true
 }
 
 // listAssignments is ARM's ListForScope: everything at, above and below
 // the scope, narrowed by $filter.
 func (p *Provider) listAssignments(w http.ResponseWriter, r *http.Request, scope string) {
 	filter := r.URL.Query().Get("$filter")
-	atScope, principal, ok := parseAssignmentFilter(filter)
+	f, ok := parseAssignmentFilter(filter)
 	if !ok {
 		azerr.WriteError(w, http.StatusBadRequest, azerr.CodeInvalidFilter,
 			"The filter '"+filter+"' is not supported. Use atScope(), principalId eq '…' "+
 				"or assignedTo('…').")
 		return
 	}
-	all, err := p.store.List(scope, atScope)
+	all, err := p.store.List(scope, f.atScope)
 	if err != nil {
 		internalError(w, err)
 		return
 	}
+	// Whose assignments to keep: the principal's and, for assignedTo,
+	// those of every group it is in.
+	keep := map[string]bool{strings.ToLower(f.principal): true}
+	if f.withGroups {
+		for _, id := range p.dir.TransitiveGroupIDs(f.principal) {
+			keep[strings.ToLower(id)] = true
+		}
+	}
 	out := make([]assignment, 0, len(all))
 	for _, a := range all {
-		if principal != "" && !strings.EqualFold(a.PrincipalID, principal) {
+		if f.principal != "" && !keep[strings.ToLower(a.PrincipalID)] {
 			continue
 		}
 		out = append(out, toAssignment(a))
