@@ -61,7 +61,7 @@ type Object struct {
 	// servicePrincipal: "Application" or "ManagedIdentity"
 	ServicePrincipalType string `json:"servicePrincipalType,omitempty"`
 	AccountEnabled       bool   `json:"accountEnabled"`
-	// user
+	// user; the password is kept as a hash, like a client secret
 	UserPrincipalName string `json:"userPrincipalName,omitempty"`
 	MailNickname      string `json:"mailNickname,omitempty"`
 	PasswordHash      string `json:"passwordHash,omitempty"`
@@ -69,7 +69,7 @@ type Object struct {
 	Description     string   `json:"description,omitempty"`
 	MailEnabled     bool     `json:"mailEnabled"`
 	SecurityEnabled bool     `json:"securityEnabled"`
-	Members         []string `json:"members,omitempty"` // object ids
+	Members         []string `json:"members,omitempty"` // object ids, in the order added
 
 	Passwords []Password `json:"passwordCredentials,omitempty"`
 
@@ -192,7 +192,6 @@ func (s *Store) Create(o Object) (Object, error) {
 	o.ID = newID()
 	o.Created = time.Now().UTC().Truncate(time.Second)
 	o.Members, o.Passwords, o.Seeded = nil, nil, false
-
 	if o.Kind != KindUser {
 		o.PasswordHash = ""
 	}

@@ -22,11 +22,13 @@ import (
 )
 
 // Principals is what the provider needs from a directory: whether an
-// object id is a user, a group or a service principal there, and which.
+// object id is a user, a group or a service principal there, and which,
+// and the groups a principal is in at any depth (for assignedTo).
 // *directory.Store is one; a Provider built without a directory answers
-// from the configuration's identities.
+// from the configuration's identities, which are in no group.
 type Principals interface {
 	PrincipalByID(id string) (directory.Object, bool)
+	TransitiveGroupIDs(principalID string) []string
 }
 
 // Provider serves the Microsoft.Authorization namespace.
@@ -134,6 +136,8 @@ func (c configPrincipals) PrincipalByID(id string) (directory.Object, bool) {
 	}
 	return directory.Object{}, false
 }
+
+func (configPrincipals) TransitiveGroupIDs(string) []string { return nil }
 
 // principalTypeOf is the name RBAC gives a directory object's kind.
 func principalTypeOf(o directory.Object) string {
