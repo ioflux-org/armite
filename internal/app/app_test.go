@@ -114,19 +114,12 @@ func field(t *testing.T, body, name string) string {
 	return v
 }
 
-// The az ad sp create-for-rbac flow over real HTTPS: a service
-// principal created through Graph a moment ago logs in with the secret
-// Graph showed once, is refused by ARM until a role is assigned, gets
-// the role on the first try, and is then allowed exactly what the role
-// allows.
-func TestAServicePrincipalCreatedThroughGraph(t *testing.T) {
-	s := apptest.Start(t)
-	cfg := s.App.Config
-	graph, arm := cfg.GraphBaseURL()+"/v1.0", cfg.ARMBaseURL()
-	graphTok := s.Token(client, secret, cfg.GraphAudience()+"/.default")
-	ownerTok := s.Token(client, secret, armScope)
-
-	st, body := s.Do("POST", graph+"/applications", graphTok, `{"displayName":"ci-app","keyCredentials":[]}`)
+// newServicePrincipal does what az ad sp create-for-rbac does through
+// Graph: an application, a secret on it, a service principal for it.
+func newServicePrincipal(t *testing.T, s *apptest.Server, graphTok, name string) (appID, secret, object string) {
+	t.Helper()
+	graph := s.App.Config.GraphBaseURL() + "/v1.0"
+	st, body := s.Do("POST", graph+"/applications", graphTok, `{"displayName":"`+name+`","keyCredentials":[]}`)
 	if st != 201 {
 		t.Fatalf("create application: %d %s", st, body)
 	}
@@ -136,12 +129,27 @@ func TestAServicePrincipalCreatedThroughGraph(t *testing.T) {
 	if st != 200 {
 		t.Fatalf("addPassword: %d %s", st, body)
 	}
-	newSecret := field(t, body, "secretText")
+	secret = field(t, body, "secretText")
 	st, body = s.Do("POST", graph+"/servicePrincipals", graphTok, `{"appId":"`+appID+`","accountEnabled":true}`)
 	if st != 201 {
 		t.Fatalf("create service principal: %d %s", st, body)
 	}
-	spObject := field(t, body, "id")
+	return appID, secret, field(t, body, "id")
+}
+
+// The az ad sp create-for-rbac flow over real HTTPS: a service
+// principal created through Graph a moment ago logs in with the secret
+// Graph showed once, is refused by ARM until a role is assigned, gets
+// the role on the first try, and is then allowed exactly what the role
+// allows.
+func TestAServicePrincipalCreatedThroughGraph(t *testing.T) {
+	s := apptest.Start(t)
+	cfg := s.App.Config
+	arm := cfg.ARMBaseURL()
+	graphTok := s.Token(client, secret, cfg.GraphAudience()+"/.default")
+	ownerTok := s.Token(client, secret, armScope)
+
+	appID, newSecret, spObject := newServicePrincipal(t, s, graphTok, "ci-app")
 
 	// It logs in at once, and has no role yet.
 	spTok := s.Token(appID, newSecret, armScope)
@@ -167,5 +175,74 @@ func TestAServicePrincipalCreatedThroughGraph(t *testing.T) {
 	if st, body := s.Do("PUT", arm+sub+"/resourcegroups/nope?api-version=2021-04-01", spTok,
 		`{"location":"eastus"}`); st != 403 || !strings.Contains(body, "AuthorizationFailed") {
 		t.Fatalf("create as Reader: %d %s, want 403", st, body)
+	}
+}
+
+// A role given to a group reaches a member two groups down, on the
+// token it already holds, and stops reaching it on the next request
+// after the nesting is undone.
+func TestAGroupsRoleReachesItsMembers(t *testing.T) {
+	s := apptest.Start(t)
+	cfg := s.App.Config
+	graph, arm := cfg.GraphBaseURL()+"/v1.0", cfg.ARMBaseURL()
+	graphTok := s.Token(client, secret, cfg.GraphAudience()+"/.default")
+	ownerTok := s.Token(client, secret, armScope)
+
+	appID, newSecret, spObject := newServicePrincipal(t, s, graphTok, "member-app")
+	spTok := s.Token(appID, newSecret, armScope)
+	group := func(name string) string {
+		t.Helper()
+		st, body := s.Do("POST", graph+"/groups", graphTok,
+			`{"displayName":"`+name+`","mailNickname":"`+name+`","mailEnabled":false,"securityEnabled":true}`)
+		if st != 201 {
+			t.Fatalf("create group %s: %d %s", name, st, body)
+		}
+		return field(t, body, "id")
+	}
+	add := func(groupID, memberID string) {
+		t.Helper()
+		st, body := s.Do("POST", graph+"/groups/"+groupID+"/members/$ref", graphTok,
+			`{"@odata.id":"`+graph+`/directoryObjects/`+memberID+`"}`)
+		if st != 204 {
+			t.Fatalf("add member: %d %s", st, body)
+		}
+	}
+	readers, team := group("readers"), group("team")
+	add(team, spObject) // the service principal is in team
+
+	// Reader goes to the group readers, which nobody is in yet.
+	grant := arm + sub + "/providers/Microsoft.Authorization/roleAssignments/" +
+		"0f0f0f0f-0000-4000-8000-000000000003?api-version=2022-04-01"
+	grantBody := `{"properties":{"roleDefinitionId":"` + sub + "/providers/Microsoft.Authorization/roleDefinitions/" +
+		config.ReaderRoleID + `","principalId":"` + readers + `"}}`
+	if st, body := s.Do("PUT", grant, ownerTok, grantBody); st != 201 || !strings.Contains(body, `"principalType":"Group"`) {
+		t.Fatalf("grant Reader to the group: %d %s", st, body)
+	}
+	groups := arm + sub + "/resourcegroups?api-version=2021-04-01"
+	if st, body := s.Do("GET", groups, spTok, ""); st != 403 {
+		t.Fatalf("before team is in readers: %d %s, want 403", st, body)
+	}
+
+	add(readers, team) // team is in readers: the role now reaches the service principal
+	if st, body := s.Do("GET", groups, spTok, ""); st != 200 {
+		t.Fatalf("through two groups: %d %s, want 200", st, body)
+	}
+	if st, body := s.Do("PUT", arm+sub+"/resourcegroups/nope?api-version=2021-04-01", spTok,
+		`{"location":"eastus"}`); st != 403 {
+		t.Fatalf("Reader through a group still cannot write: %d %s", st, body)
+	}
+	// What is assigned to the principal, groups included.
+	list := arm + sub + "/providers/Microsoft.Authorization/roleAssignments?api-version=2022-04-01&" +
+		url.Values{"$filter": {"assignedTo('" + spObject + "')"}}.Encode()
+	if st, body := s.Do("GET", list, ownerTok, ""); st != 200 || !strings.Contains(body, readers) {
+		t.Fatalf("assignedTo: %d %s, want the assignment to readers", st, body)
+	}
+
+	// Undo the nesting: the same token is refused on the next request.
+	if st, body := s.Do("DELETE", graph+"/groups/"+readers+"/members/"+team+"/$ref", graphTok, ""); st != 204 {
+		t.Fatalf("remove team from readers: %d %s", st, body)
+	}
+	if st, body := s.Do("GET", groups, spTok, ""); st != 403 || !strings.Contains(body, "AuthorizationFailed") {
+		t.Fatalf("after leaving the group: %d %s, want 403", st, body)
 	}
 }

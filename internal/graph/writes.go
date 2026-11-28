@@ -41,10 +41,30 @@ func (p *Plane) target(w http.ResponseWriter, r *http.Request) (directory.Object
 	return o, true
 }
 
-// serveCreate is POST on a collection: an application (az sends a
-// displayName; the appId is ours to assign) or the service principal
-// of an existing application (az sends the appId; the name comes from
-// the application). Users and groups are not served yet.
+// prop is one required property of a create request and whether the
+// body carried it.
+type prop struct {
+	name    string
+	present bool
+}
+
+// require answers 400 for the first absent property, in Graph's words.
+func require(w http.ResponseWriter, resource string, props ...prop) bool {
+	for _, p := range props {
+		if !p.present {
+			writeError(w, http.StatusBadRequest, "Request_BadRequest",
+				"A value is required for property '"+p.name+"' of resource '"+resource+"'.")
+			return false
+		}
+	}
+	return true
+}
+
+// serveCreate is POST on a collection. Each kind has the required
+// properties Graph documents: an application its displayName (the
+// appId is ours to assign), a service principal the appId of an
+// existing application (which names it), a user its names and a
+// password, a group its name and its two flags.
 func (p *Plane) serveCreate(w http.ResponseWriter, r *http.Request) {
 	segment := r.PathValue("collection")
 	kind, ok := collections[segment]
@@ -53,9 +73,17 @@ func (p *Plane) serveCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		DisplayName    string `json:"displayName"`
-		AppID          string `json:"appId"`
-		AccountEnabled *bool  `json:"accountEnabled"`
+		DisplayName       string `json:"displayName"`
+		AppID             string `json:"appId"`
+		AccountEnabled    *bool  `json:"accountEnabled"`
+		UserPrincipalName string `json:"userPrincipalName"`
+		MailNickname      string `json:"mailNickname"`
+		PasswordProfile   struct {
+			Password string `json:"password"`
+		} `json:"passwordProfile"`
+		Description     string `json:"description"`
+		MailEnabled     *bool  `json:"mailEnabled"`
+		SecurityEnabled *bool  `json:"securityEnabled"`
 	}
 	if !decode(w, r, &body) {
 		return
@@ -64,12 +92,13 @@ func (p *Plane) serveCreate(w http.ResponseWriter, r *http.Request) {
 	if body.AccountEnabled != nil {
 		o.AccountEnabled = *body.AccountEnabled
 	}
+	create := p.dir.Create
+	// What a duplicate key is answered with: Graph's own status and code differ by kind.
+	status, code := http.StatusConflict, "Request_MultipleObjectsWithSameKeyValue"
 	conflict := "Another object with the same value for property appId already exists."
 	switch kind {
 	case directory.KindApplication:
-		if body.DisplayName == "" {
-			writeError(w, http.StatusBadRequest, "Request_BadRequest",
-				"A value is required for property 'displayName' of resource 'Application'.")
+		if !require(w, "Application", prop{"displayName", body.DisplayName != ""}) {
 			return
 		}
 	case directory.KindServicePrincipal:
@@ -82,15 +111,37 @@ func (p *Plane) serveCreate(w http.ResponseWriter, r *http.Request) {
 		o.AppID, o.DisplayName = app.AppID, app.DisplayName
 		conflict = "The service principal cannot be created, updated, or restored because the " +
 			"service principal name " + app.AppID + " is already in use."
-	default:
-		writeError(w, http.StatusNotImplemented, "NotImplemented",
-			"Creating "+segment+" is not supported yet; see https://armite.cloud/divergences.")
-		return
+	case directory.KindUser:
+		if !require(w, "User", prop{"accountEnabled", body.AccountEnabled != nil},
+			prop{"displayName", body.DisplayName != ""}, prop{"mailNickname", body.MailNickname != ""},
+			prop{"passwordProfile", body.PasswordProfile.Password != ""},
+			prop{"userPrincipalName", body.UserPrincipalName != ""}) {
+			return
+		}
+		if at := strings.IndexByte(body.UserPrincipalName, '@'); at < 1 || at == len(body.UserPrincipalName)-1 {
+			writeError(w, http.StatusBadRequest, "Request_BadRequest",
+				"The userPrincipalName '"+body.UserPrincipalName+"' must have the form name@domain.")
+			return
+		}
+		o.UserPrincipalName, o.MailNickname = body.UserPrincipalName, body.MailNickname
+		create = func(o directory.Object) (directory.Object, error) {
+			return p.dir.CreateUser(o, body.PasswordProfile.Password)
+		}
+		status, code = http.StatusBadRequest, "Request_BadRequest"
+		conflict = "Another object with the same value for property userPrincipalName already exists."
+	case directory.KindGroup:
+		if !require(w, "Group", prop{"displayName", body.DisplayName != ""},
+			prop{"mailEnabled", body.MailEnabled != nil}, prop{"mailNickname", body.MailNickname != ""},
+			prop{"securityEnabled", body.SecurityEnabled != nil}) {
+			return
+		}
+		o.MailNickname, o.Description = body.MailNickname, body.Description
+		o.MailEnabled, o.SecurityEnabled = *body.MailEnabled, *body.SecurityEnabled
 	}
-	created, err := p.dir.Create(o)
+	created, err := create(o)
 	switch {
 	case errors.Is(err, directory.ErrConflict):
-		writeError(w, http.StatusConflict, "Request_MultipleObjectsWithSameKeyValue", conflict)
+		writeError(w, status, code, conflict)
 	case err != nil:
 		internalError(w, err)
 	default:
@@ -107,8 +158,13 @@ func (p *Plane) serveUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		DisplayName    *string `json:"displayName"`
-		AccountEnabled *bool   `json:"accountEnabled"`
+		DisplayName     *string `json:"displayName"`
+		AccountEnabled  *bool   `json:"accountEnabled"`
+		MailNickname    *string `json:"mailNickname"`
+		Description     *string `json:"description"`
+		PasswordProfile *struct {
+			Password string `json:"password"`
+		} `json:"passwordProfile"`
 	}
 	if !decode(w, r, &body) {
 		return
@@ -124,8 +180,17 @@ func (p *Plane) serveUpdate(w http.ResponseWriter, r *http.Request) {
 		if body.AccountEnabled != nil {
 			o.AccountEnabled = *body.AccountEnabled
 		}
+		if body.MailNickname != nil && (o.Kind == directory.KindUser || o.Kind == directory.KindGroup) {
+			o.MailNickname = *body.MailNickname
+		}
+		if body.Description != nil && o.Kind == directory.KindGroup {
+			o.Description = *body.Description
+		}
 		return nil
 	})
+	if err == nil && body.PasswordProfile != nil && body.PasswordProfile.Password != "" && o.Kind == directory.KindUser {
+		err = p.dir.SetUserPassword(o.ID, body.PasswordProfile.Password)
+	}
 	if err != nil {
 		internalError(w, err)
 		return

@@ -2,7 +2,7 @@
 // needs: what az ad, az role assignment and the azuread Terraform
 // provider send. One plane behind the graph host, every request with a
 // token for the Graph audience. This file routes and answers reads;
-// writes.go creates, changes and deletes.
+// writes.go creates, changes and deletes; members.go is group membership.
 package graph
 
 import (
@@ -49,6 +49,12 @@ func New(cfg config.Config, dir *directory.Store, pub *rsa.PublicKey, now func()
 	p.mux.HandleFunc("DELETE /v1.0/{collection}/{key}", p.serveDelete)
 	p.mux.HandleFunc("POST /v1.0/{collection}/{key}/addPassword", p.serveAddPassword)
 	p.mux.HandleFunc("POST /v1.0/{collection}/{key}/removePassword", p.serveRemovePassword)
+	p.mux.HandleFunc("GET /v1.0/groups/{key}/members", p.serveMembers)
+	p.mux.HandleFunc("GET /v1.0/groups/{key}/transitiveMembers", p.serveMembers)
+	p.mux.HandleFunc("POST /v1.0/groups/{key}/members/$ref", p.serveAddMember)
+	p.mux.HandleFunc("DELETE /v1.0/groups/{key}/members/{member}/$ref", p.serveRemoveMember)
+	p.mux.HandleFunc("POST /v1.0/{collection}/{key}/checkMemberGroups", p.serveCheckMemberGroups)
+	p.mux.HandleFunc("POST /v1.0/{collection}/{key}/getMemberGroups", p.serveGetMemberGroups)
 	p.mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "Request_ResourceNotFound",
 			"Resource not found for the segment '"+strings.Trim(r.URL.Path, "/")+"'.")
@@ -126,9 +132,7 @@ func (p *Plane) serveGetByIds(w http.ResponseWriter, r *http.Request) {
 	out := make([]map[string]any, 0, len(body.IDs))
 	for _, id := range body.IDs {
 		if o, ok := p.dir.PrincipalByID(id); ok {
-			m := wire(o)
-			m["@odata.type"] = "#microsoft.graph." + o.Kind
-			out = append(out, m)
+			out = append(out, typed(o))
 		}
 	}
 	gateway.WriteJSON(w, http.StatusOK, map[string]any{"value": out})
@@ -169,7 +173,20 @@ func wire(o directory.Object) map[string]any {
 		m["mailEnabled"] = o.MailEnabled
 		m["securityEnabled"] = o.SecurityEnabled
 		m["groupTypes"] = []any{}
+		m["description"] = nil // Graph's null for "not set"
+		if o.Description != "" {
+			m["description"] = o.Description
+		}
 	}
+	return m
+}
+
+// typed is wire with the @odata.type a mixed listing needs: a group's
+// members and getByIds return users, groups and service principals
+// side by side.
+func typed(o directory.Object) map[string]any {
+	m := wire(o)
+	m["@odata.type"] = "#microsoft.graph." + o.Kind
 	return m
 }
 
