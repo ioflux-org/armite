@@ -172,8 +172,29 @@ Through Graph these identities can be changed (a second password, a
 new display name) but not deleted. Once changed, the state holds them,
 and a secret edited in the file no longer applies until `armite reset`.
 
-Not in the directory yet: users and groups — `az ad user create`
-answers _not supported yet_ — so `az login` is still
+### Users and groups
+
+`az ad user` and `az ad group` work as they do against Entra, and so
+does membership: `az ad group member add`, `list`, `check` and
+`remove`. A role assigned to a group reaches its members, through
+groups inside groups too:
+
+```bash
+az ad group create --display-name readers --mail-nickname readers
+az ad group member add --group readers --member-id 9e8d7c6b-5a4f-4e3d-2c1b-0a9f8e7d6c5b
+az role assignment create --assignee "$(az ad group show --group readers --query id -o tsv)" \
+  --role Reader --scope /subscriptions/22222222-2222-2222-2222-222222222222
+```
+
+Membership is read on every request: a principal added to a group is
+allowed on its next call with the token it already holds, and refused
+again on the call after it is removed. `az role assignment list
+--assignee … --include-groups` shows what a principal has through its
+groups.
+
+Users are directory objects for now. They can be members and hold role
+assignments (`--assignee ada@armite.local` finds one by name), but
+there is no sign-in for them yet: `az login` is still
 `--service-principal` or `--identity`.
 
 ## Logs and request ids

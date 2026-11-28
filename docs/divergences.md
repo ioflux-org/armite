@@ -55,10 +55,22 @@ limitation_ (unverified against a live subscription), _invention_
 
 ## Directory (Microsoft Graph)
 
-- **Applications and service principals only, for now.** Created,
-  changed and deleted through Graph (`az ad app`, `az ad sp`,
-  `create-for-rbac`, credential reset); users and groups are not served
-  yet (`501 NotImplemented`), so there is no interactive login.
+- **Users cannot sign in.** Applications, service principals, users and
+  groups are created, changed and deleted through Graph (`az ad app`,
+  `sp`, `user`, `group`), and users hold role assignments and
+  memberships, but no flow gives a user a token. _deferred_
+- **Group membership counts on the next request.** RBAC asks the
+  directory on every check, so joining or leaving a group changes what
+  the token already in hand may do; in Azure that takes a new token or
+  some minutes. _environment_
+- **Nested groups may form a cycle** (a in b, b in a); every walk stops
+  at what it has already seen. Whether Entra refuses such a nesting was
+  not captured. _accepted limitation_
+- **Any domain in a userPrincipalName, any password.** No verified
+  domains and no password policy; a user's password is stored as a
+  PBKDF2 hash that nothing reads yet. _simplification_
+- **Not served:** group owners, `memberOf`, dynamic and Microsoft 365
+  groups, user properties beyond the names (`givenName`, `mail`, …).
   _deferred_
 - **No Graph permissions model.** Any principal with a token for the
   Graph audience may read and change the directory; Azure requires
@@ -89,8 +101,9 @@ limitation_ (unverified against a live subscription), _invention_
 
 - Built-in roles are a snapshot of the real 934 definitions (captured
   2026-08-30); definition IDs are tenant-level. _simplification_
-- A principal is one object ID: no group expansion; the directory
-  supplies `principalType`, and evaluation ignores it. _simplification_
+- `principalType` comes from the directory and plays no part in
+  evaluation: an assignment grants by object id, the principal's own or
+  that of a group it is in. _simplification_
 - Not evaluated: ABAC conditions, deny assignments, PIM eligible
   assignments, classic administrators. _deferred_
 - Custom role definitions cannot be created; the built-in set is

@@ -55,8 +55,8 @@ az cloud set -n Armite && az config set core.instance_discovery=false
 az login --identity
 ```
 
-Known: `az role assignment list -o table` fails (no Graph for principal
-names); use `-o json` or `--query`. `az ad …` commands do not work.
+`az ad` commands go to Microsoft Graph on `graph.localhost`; what the
+directory serves is in [Adding a principal](./config.md#adding-a-principal).
 Create vaults with `--enable-rbac-authorization`.
 
 ## Node (@azure/identity, @azure/keyvault-secrets, @azure/arm-\*)
