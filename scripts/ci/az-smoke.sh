@@ -43,13 +43,17 @@ refused() {
     ok "$what -> $text"
 }
 
+# login switches az to a service principal.
+login() {
+    az login --service-principal -u "$1" -p "$2" --tenant 11111111-1111-1111-1111-111111111111 -o none
+}
+
 az cloud set -n AzureCloud 2>/dev/null || true
 az cloud unregister -n Armite 2>/dev/null || true
 az cloud register -n Armite --endpoint-resource-manager https://management.localhost:8443
 az cloud set -n Armite
 az config set core.instance_discovery=false core.collect_telemetry=false core.only_show_errors=true >/dev/null
-az login --service-principal -u 33333333-3333-3333-3333-333333333333 -p armite-secret \
-    --tenant 11111111-1111-1111-1111-111111111111 -o none
+login 33333333-3333-3333-3333-333333333333 armite-secret
 [ "$(tsv account show --query id)" = "$SUB" ] || fail "login did not land in the subscription"
 ok "az login"
 
@@ -114,21 +118,43 @@ ID=$(curl -sS $CURL_REVOKE --cacert "$REQUESTS_CA_BUNDLE" -D - -o "$CI_DIR/body"
 grep -q "id=$ID" "$CI_DIR/server.log" || fail "request id $ID is not in the server log"
 ok "x-ms-request-id $ID is in the server log"
 
-# A service principal created through Graph, last because it changes who
-# az is logged in as. create-for-rbac makes the application, a secret
-# and the service principal and assigns the role, which succeeds on the
-# first try: the directory is consulted, there is no replication to
-# wait for. The new principal then logs in and gets what Reader allows.
+# Principals created through Graph, last because it changes who az is
+# logged in as. create-for-rbac makes the application, a secret and the
+# service principal and assigns the role, which succeeds on the first
+# try: the directory is consulted, there is no replication to wait for.
 az ad sp create-for-rbac -n ci-sp --role Reader --scopes "/subscriptions/$SUB" -o json > "$CI_DIR/sp.json"
 APPID=$(sed -n 's/.*"appId": *"\([^"]*\)".*/\1/p' "$CI_DIR/sp.json")
 PASSWORD=$(sed -n 's/.*"password": *"\([^"]*\)".*/\1/p' "$CI_DIR/sp.json")
 [ -n "$APPID" ] && [ -n "$PASSWORD" ] || fail "create-for-rbac printed no credentials: $(cat "$CI_DIR/sp.json")"
+SP=$(tsv ad sp show --id "$APPID" --query id)
 ok "az ad sp create-for-rbac"
-az login --service-principal -u "$APPID" -p "$PASSWORD" \
-    --tenant 11111111-1111-1111-1111-111111111111 -o none
+
+# A user and a group, each given a role: the group by its object id,
+# the user by name. az asks Graph what kind of principal each is.
+az ad user create --display-name Ada --user-principal-name ada@armite.local --password 'P@ssw0rd!2026' -o none
+az ad group create --display-name builders --mail-nickname builders -o none
+GROUP=$(tsv ad group show --group builders --query id)
+[ "$(tsv role assignment create --assignee "$GROUP" --role Contributor \
+    --scope "/subscriptions/$SUB" --query principalType)" = Group ] || fail "a role for a group"
+[ "$(tsv role assignment create --assignee ada@armite.local --role Reader \
+    --scope "/subscriptions/$SUB" --query principalType)" = User ] || fail "a role for a user, found by name"
+ok "a user and a group hold roles"
+
+# The new principal logs in and gets what Reader allows...
+login "$APPID" "$PASSWORD"
 [ "$(tsv group list --query "length(@)")" -ge 2 ] || fail "the new principal cannot read as Reader"
 refused "Reader cannot create a resource group" "AuthorizationFailed" \
     az group create -n sp-rg -l eastus
 ok "the new principal logs in, reads, and is refused a write"
+
+# ...until it joins the group: Contributor reaches it through the
+# membership, on the very next request.
+login 33333333-3333-3333-3333-333333333333 armite-secret
+az ad group member add --group builders --member-id "$SP"
+[ "$(tsv ad group member check --group builders --member-id "$SP" --query value)" = true ] ||
+    fail "az ad group member check"
+login "$APPID" "$PASSWORD"
+az group create -n sp-rg -l eastus -o none
+ok "a group's role reaches its member"
 
 echo PASS

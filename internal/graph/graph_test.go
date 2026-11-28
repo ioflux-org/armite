@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -193,9 +194,6 @@ func TestCreateApplicationPasswordAndServicePrincipal(t *testing.T) {
 	if code, out := call(t, p, "POST", "/v1.0/applications", tok, `{}`); code != 400 || errCode(out) != "Request_BadRequest" {
 		t.Errorf("an application without a displayName: %d %v", code, out)
 	}
-	if code, out := call(t, p, "POST", "/v1.0/users", tok, `{"displayName":"u"}`); code != 501 || errCode(out) != "NotImplemented" {
-		t.Errorf("creating a user is not served yet: %d %v", code, out)
-	}
 }
 
 func TestPatchRemovePasswordAndDelete(t *testing.T) {
@@ -268,5 +266,194 @@ func TestPatchRemovePasswordAndDelete(t *testing.T) {
 	}
 	if code, out := call(t, p, "DELETE", "/v1.0/applications/"+seedApp, tok, ""); code != 403 {
 		t.Errorf("deleting the configured application, even after a change: %d %v", code, out)
+	}
+}
+
+// values is the "value" array of a listing as ids, in order.
+func values(t *testing.T, out map[string]any) []string {
+	t.Helper()
+	list, ok := out["value"].([]any)
+	if !ok {
+		t.Fatalf("no value array in %v", out)
+	}
+	ids := make([]string, len(list))
+	for i, v := range list {
+		switch v := v.(type) {
+		case string:
+			ids[i] = v
+		case map[string]any:
+			ids[i], _ = v["id"].(string)
+		}
+	}
+	return ids
+}
+
+// What az ad user create sends, and the ways az looks a user up after.
+func TestUsersAsAzCreatesAndFindsThem(t *testing.T) {
+	p, _, tok := newPlane(t)
+	const ada = `{"userPrincipalName":"ada@armite.local","displayName":"Ada","mailNickname":"ada",` +
+		`"accountEnabled":true,"passwordProfile":{"password":"P@ssw0rd!","forceChangePasswordNextSignIn":false}}`
+	code, user := call(t, p, "POST", "/v1.0/users", tok, ada)
+	id, _ := user["id"].(string)
+	if code != 201 || id == "" || user["userPrincipalName"] != "ada@armite.local" || user["accountEnabled"] != true {
+		t.Fatalf("create user: %d %v", code, user)
+	}
+	if raw, _ := json.Marshal(user); strings.Contains(string(raw), "assw") {
+		t.Errorf("the response carries the password or its hash: %s", raw)
+	}
+	for _, key := range []string{id, "ada@armite.local", "ADA@armite.local"} {
+		if code, got := call(t, p, "GET", "/v1.0/users/"+key, tok, ""); code != 200 || got["id"] != id {
+			t.Errorf("GET /users/%s: %d %v", key, code, got)
+		}
+	}
+	q := url.Values{"$filter": {"userPrincipalName eq 'ada@armite.local'"}}
+	if _, list := call(t, p, "GET", "/v1.0/users?"+q.Encode(), tok, ""); !slices.Equal(values(t, list), []string{id}) {
+		t.Errorf("filter by userPrincipalName: %v", list)
+	}
+
+	if code, out := call(t, p, "POST", "/v1.0/users", tok, ada); code != 400 || errCode(out) != "Request_BadRequest" {
+		t.Errorf("a second user with the same userPrincipalName: %d %v", code, out)
+	}
+	for _, missing := range []string{"userPrincipalName", "displayName", "mailNickname", "accountEnabled", "passwordProfile"} {
+		var body map[string]any
+		_ = json.Unmarshal([]byte(strings.Replace(ada, "ada@", "bob@", 1)), &body)
+		delete(body, missing)
+		raw, _ := json.Marshal(body)
+		code, out := call(t, p, "POST", "/v1.0/users", tok, string(raw))
+		msg, _ := out["error"].(map[string]any)["message"].(string)
+		if code != 400 || !strings.Contains(msg, "'"+missing+"'") {
+			t.Errorf("a user without %s: %d %q", missing, code, msg)
+		}
+	}
+	if code, _ := call(t, p, "POST", "/v1.0/users", tok, strings.Replace(ada, "ada@armite.local", "no-domain", 1)); code != 400 {
+		t.Errorf("a userPrincipalName without a domain: %d", code)
+	}
+
+	before, _ := p.dir.Get(id)
+	if code, out := call(t, p, "PATCH", "/v1.0/users/ada@armite.local", tok,
+		`{"displayName":"Ada L","passwordProfile":{"password":"N3w-secret"}}`); code != 204 {
+		t.Fatalf("patch user: %d %v", code, out)
+	}
+	after, _ := p.dir.Get(id)
+	if after.DisplayName != "Ada L" || after.PasswordHash == "" || after.PasswordHash == before.PasswordHash {
+		t.Errorf("after the patch: name %q, password changed %v", after.DisplayName, after.PasswordHash != before.PasswordHash)
+	}
+	if code, _ := call(t, p, "DELETE", "/v1.0/users/ada@armite.local", tok, ""); code != 204 {
+		t.Errorf("delete user: %d", code)
+	}
+	if code, _ := call(t, p, "GET", "/v1.0/users/"+id, tok, ""); code != 404 {
+		t.Errorf("the user after its delete: %d", code)
+	}
+}
+
+// What az ad group create and az ad group member send: a group, a
+// group inside it, and the membership questions answered through the
+// nesting.
+func TestGroupsAndTheirMembers(t *testing.T) {
+	p, cfg, tok := newPlane(t)
+	ref := func(id string) string {
+		return `{"@odata.id":"` + cfg.GraphBaseURL() + `/v1.0/directoryObjects/` + id + `"}`
+	}
+	group := func(name string) string {
+		t.Helper()
+		code, g := call(t, p, "POST", "/v1.0/groups", tok,
+			`{"displayName":"`+name+`","mailNickname":"`+name+`","mailEnabled":false,"securityEnabled":true}`)
+		if code != 201 || g["securityEnabled"] != true || g["description"] != nil {
+			t.Fatalf("create group %s: %d %v", name, code, g)
+		}
+		return g["id"].(string)
+	}
+	outer, inner := group("outer"), group("inner")
+	_, user := call(t, p, "POST", "/v1.0/users", tok, `{"userPrincipalName":"ada@armite.local","displayName":"Ada",`+
+		`"mailNickname":"ada","accountEnabled":true,"passwordProfile":{"password":"P@ssw0rd!"}}`)
+	userID := user["id"].(string)
+	sp := cfg.Clients[0].ObjectID // the configured service principal
+
+	if code, out := call(t, p, "POST", "/v1.0/groups", tok, `{"displayName":"x","mailNickname":"x"}`); code != 400 ||
+		!strings.Contains(out["error"].(map[string]any)["message"].(string), "'mailEnabled'") {
+		t.Errorf("a group without its flags: %d %v", code, out)
+	}
+
+	// outer holds the user and inner; inner holds the service principal.
+	for _, add := range [][2]string{{outer, userID}, {outer, inner}, {inner, sp}} {
+		if code, out := call(t, p, "POST", "/v1.0/groups/"+add[0]+"/members/$ref", tok, ref(add[1])); code != 204 {
+			t.Fatalf("add member: %d %v", code, out)
+		}
+	}
+	if code, out := call(t, p, "POST", "/v1.0/groups/"+outer+"/members/$ref", tok, ref(userID)); code != 400 ||
+		errCode(out) != "Request_BadRequest" {
+		t.Errorf("the same member twice: %d %v", code, out)
+	}
+	if code, _ := call(t, p, "POST", "/v1.0/groups/"+outer+"/members/$ref", tok, ref(outer)); code != 400 {
+		t.Errorf("a group as its own member: %d", code)
+	}
+	if code, out := call(t, p, "POST", "/v1.0/groups/"+outer+"/members/$ref", tok,
+		ref("00000000-0000-0000-0000-000000000000")); code != 404 || errCode(out) != "Request_ResourceNotFound" {
+		t.Errorf("a member that does not exist: %d %v", code, out)
+	}
+	if code, _ := call(t, p, "POST", "/v1.0/groups/"+outer+"/members/$ref", tok, `{}`); code != 400 {
+		t.Errorf("a $ref without a body: %d", code)
+	}
+
+	_, direct := call(t, p, "GET", "/v1.0/groups/"+outer+"/members", tok, "")
+	if !slices.Equal(values(t, direct), []string{userID, inner}) {
+		t.Errorf("members of outer = %v, want the user and inner", values(t, direct))
+	}
+	first := direct["value"].([]any)[0].(map[string]any)
+	if first["@odata.type"] != "#microsoft.graph.user" || first["userPrincipalName"] != "ada@armite.local" {
+		t.Errorf("a member must say what it is: %v", first)
+	}
+	_, all := call(t, p, "GET", "/v1.0/groups/"+outer+"/transitiveMembers", tok, "")
+	if !slices.Equal(values(t, all), []string{userID, inner, sp}) {
+		t.Errorf("transitive members of outer = %v, want the user, inner and the service principal", values(t, all))
+	}
+
+	// The service principal is in inner directly and in outer through it.
+	_, in := call(t, p, "POST", "/v1.0/directoryObjects/"+sp+"/checkMemberGroups", tok,
+		`{"groupIds":["`+outer+`","00000000-0000-0000-0000-000000000000","`+inner+`"]}`)
+	if !slices.Equal(values(t, in), []string{outer, inner}) {
+		t.Errorf("checkMemberGroups = %v, want outer and inner, in the order asked", values(t, in))
+	}
+	_, of := call(t, p, "POST", "/v1.0/servicePrincipals/"+sp+"/getMemberGroups", tok, `{"securityEnabledOnly":false}`)
+	if got := values(t, of); len(got) != 2 || !slices.Contains(got, outer) || !slices.Contains(got, inner) {
+		t.Errorf("getMemberGroups of the service principal = %v", got)
+	}
+	_, of = call(t, p, "POST", "/v1.0/users/ada@armite.local/getMemberGroups", tok, "")
+	if !slices.Equal(values(t, of), []string{outer}) {
+		t.Errorf("getMemberGroups of the user = %v, want outer", values(t, of))
+	}
+	if code, out := call(t, p, "POST", "/v1.0/applications/"+sp+"/checkMemberGroups", tok, `{"groupIds":[]}`); code != 400 ||
+		errCode(out) != "BadRequest" {
+		t.Errorf("an application has no memberships to ask about: %d %v", code, out)
+	}
+	if code, _ := call(t, p, "POST", "/v1.0/directoryObjects/00000000-0000-0000-0000-000000000000/checkMemberGroups", tok,
+		`{"groupIds":[]}`); code != 404 {
+		t.Errorf("checkMemberGroups for nobody: %d", code)
+	}
+
+	// az role assignment list names users and groups through getByIds.
+	_, named := call(t, p, "POST", "/v1.0/directoryObjects/getByIds", tok, `{"ids":["`+userID+`","`+outer+`"]}`)
+	list := named["value"].([]any)
+	if len(list) != 2 || list[0].(map[string]any)["@odata.type"] != "#microsoft.graph.user" ||
+		list[1].(map[string]any)["@odata.type"] != "#microsoft.graph.group" || list[1].(map[string]any)["displayName"] != "outer" {
+		t.Errorf("getByIds = %v", list)
+	}
+
+	if code, _ := call(t, p, "DELETE", "/v1.0/groups/"+outer+"/members/"+userID+"/$ref", tok, ""); code != 204 {
+		t.Errorf("remove member: %d", code)
+	}
+	if code, out := call(t, p, "DELETE", "/v1.0/groups/"+outer+"/members/"+userID+"/$ref", tok, ""); code != 404 ||
+		errCode(out) != "Request_ResourceNotFound" {
+		t.Errorf("remove a non-member: %d %v", code, out)
+	}
+	// A deleted group leaves the group it was in.
+	if code, _ := call(t, p, "DELETE", "/v1.0/groups/"+inner, tok, ""); code != 204 {
+		t.Errorf("delete inner: %d", code)
+	}
+	if _, left := call(t, p, "GET", "/v1.0/groups/"+outer+"/transitiveMembers", tok, ""); len(values(t, left)) != 0 {
+		t.Errorf("outer after inner is gone = %v, want empty", values(t, left))
+	}
+	if code, _ := call(t, p, "GET", "/v1.0/groups/"+inner+"/members", tok, ""); code != 404 {
+		t.Errorf("members of a deleted group: %d", code)
 	}
 }
