@@ -216,3 +216,20 @@ jobs:
           cache-dependency-path: docs/package-lock.json
       - run: npm ci
       - run: npm run build
+
+  # The one check branch protection requires. A job skipped on purpose
+  # reports "skipped" under its own name and passes, but a skipped
+  # matrix job reports once, as "smoke-os", so its per-OS names never
+  # arrive and a rule requiring them waits forever. This job always
+  # runs and is red when anything it needs failed or was cancelled.
+  result:
+    needs: [changes, gate, smoke, smoke-os, docker, docs]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every job passed or was skipped on purpose
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "results: $RESULTS"
+          case " $RESULTS " in *" failure "*|*" cancelled "*) exit 1 ;; esac
