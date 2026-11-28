@@ -41,7 +41,7 @@ and in CI instead of in production.
 | RBAC                    | All 934 built-in roles; Actions, NotActions, DataActions, NotDataActions with Azure's glob semantics; assignments at any scope; deny by default |
 | ARM                     | Subscriptions, tenants, resource groups, generic resource listing, the resource-provider catalogue, cloud discovery (`/metadata/endpoints`)     |
 | Microsoft.Authorization | Role definitions (read), role assignments (create, read, list, delete)                                                                          |
-| Directory               | A Microsoft Graph subset: applications, service principals and their secrets, created at runtime (`az ad sp create-for-rbac`)                   |
+| Directory               | A Microsoft Graph subset: applications, service principals and their secrets, users, groups and nested membership, created at runtime           |
 | Microsoft.KeyVault      | Vaults (management plane); secrets with versions, soft delete, recover and purge (data plane, one hostname per vault, challenge authentication) |
 | Microsoft.Storage       | Storage accounts, keys and containers; a blob data plane with RBAC on every call, served by Azurite behind it; key, SAS and user delegation SAS |
 | Persistence             | Everything created through the API survives restarts and crashes: an encrypted journal in your data directory, no database to run               |
@@ -135,10 +135,11 @@ elsewhere. The complete list is in
 - Clients must skip Entra instance discovery (`disableInstanceDiscovery`,
   `az config set core.instance_discovery=false`); the authority is not
   in Microsoft's instance metadata.
-- No Microsoft Graph: `az ad …` does not work, and `az role assignment list` needs `-o json` or `--query` (the table view wants principal
-  names only Graph can supply).
-- A principal is one object ID; there are no groups to expand, no ABAC
-  conditions, no deny assignments.
+- Microsoft Graph is a subset: applications, service principals, users
+  and groups, as `az ad` uses them. Users cannot sign in yet, so
+  `az login` is `--service-principal` or `--identity`.
+- Roles reach a principal directly or through its groups, nested ones
+  included; there are no ABAC conditions and no deny assignments.
 - Key Vault soft delete is the minimum the SDKs' pollers need; vaults
   themselves are deleted at once; Key Vault keys and certificates are not
   served yet.
